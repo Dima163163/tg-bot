@@ -3,9 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "webhook": "node scripts/webhook.js",
+    "tunnel": "node scripts/tunnel.js",
+    "tunnel:cloudflare": "node scripts/cloudflare-tunnel.js",
+    "test": "node --test"
   },
   "dependencies": {
-    "fastify": "^5.0.0"
+    "fastify": "^5.0.0",
+    "smee-client": "^5.0.0"
   }
 }
