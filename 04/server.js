@@ -6,46 +6,81 @@ import Fastify from 'fastify';
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '127.0.0.1';
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
+const FRANKFURTER_URL = 'https://api.frankfurter.dev/v1/latest?base=USD';
 
-const fastify = Fastify({ logger: true });
+function getCurrencyCode(text) {
+  const currency = String(text || '').trim().toUpperCase();
+  return /^[A-Z]{3}$/.test(currency) ? currency : null;
+}
 
-fastify.post('/webhook/telegram', async (request, reply) => {
-  console.log(request.body);
+function formatRate(rate) {
+  return new Intl.NumberFormat('ru-RU', {
+    maximumFractionDigits: 6,
+  }).format(rate);
+}
 
-  const message = request.body?.message;
-  const chatId = message?.chat?.id;
+export function createApp({ botToken = BOT_TOKEN, fetchFn = fetch, logger = true } = {}) {
+  const fastify = Fastify({ logger });
 
-  if (chatId === undefined || chatId === null) {
-    return { ok: true };
-  }
+  fastify.post('/webhook/telegram', async (request, reply) => {
+    console.log(request.body);
 
-  if (!BOT_TOKEN) {
-    fastify.log.error('BOT_TOKEN is missing in 04/.env');
-    return reply.code(500).send({ ok: false });
-  }
+    const message = request.body?.message;
+    const chatId = message?.chat?.id;
 
-  const telegramResponse = await fetch(
-    'https://api.telegram.org/bot' + BOT_TOKEN + '/sendMessage',
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: 'Получил сообщение: ' + (message.text || 'обновление'),
-      }),
-    },
-  );
+    if (chatId === undefined || chatId === null) {
+      return { ok: true };
+    }
 
-  if (!telegramResponse.ok) {
-    fastify.log.error(
-      { statusCode: telegramResponse.status },
-      'Telegram API request failed',
+    if (!botToken) {
+      fastify.log.error('BOT_TOKEN is missing in 04/.env');
+      return reply.code(500).send({ ok: false });
+    }
+
+    const currency = getCurrencyCode(message.text);
+    let text = 'Отправь трёхбуквенный код валюты, например: EUR, GBP или JPY.';
+
+    if (currency === 'USD') {
+      text = '1 USD = 1 USD';
+    } else if (currency) {
+      try {
+        const rateResponse = await fetchFn(FRANKFURTER_URL);
+        const rateData = await rateResponse.json();
+        const rate = rateData.rates?.[currency];
+
+        text = rateResponse.ok && typeof rate === 'number'
+          ? '1 USD = ' + formatRate(rate) + ' ' + currency + '\nДата курса: ' + rateData.date
+          : 'Frankfurter не предоставляет курс для ' + currency + '. Попробуй EUR, GBP или JPY.';
+      } catch (error) {
+        fastify.log.error(error, 'Frankfurter API request failed');
+        text = 'Не удалось получить курс. Попробуй ещё раз чуть позже.';
+      }
+    }
+
+    const telegramResponse = await fetchFn(
+      'https://api.telegram.org/bot' + botToken + '/sendMessage',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text }),
+      },
     );
-    return reply.code(502).send({ ok: false });
-  }
 
-  return { ok: true };
-});
+    if (!telegramResponse.ok) {
+      fastify.log.error(
+        { statusCode: telegramResponse.status },
+        'Telegram API request failed',
+      );
+      return reply.code(502).send({ ok: false });
+    }
+
+    return { ok: true };
+  });
+
+  return fastify;
+}
+
+const fastify = createApp();
 
 export default fastify;
 
