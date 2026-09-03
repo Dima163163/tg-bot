@@ -1,0 +1,22 @@
+@startuml
+title Container diagram for Currency Telegram Bot
+left to right direction
+
+actor "Telegram user\n<<Person>>" as user
+rectangle "Telegram Bot API\n<<External Software System>>" as telegram
+node "Vercel\n<<Deployment Platform>>" {
+  component "Webhook application\n<<Container>>\nNode.js, Fastify\nReceives Telegram updates, obtains a USD rate and replies." as app
+}
+rectangle "Frankfurter API\n<<External Software System>>\nHTTPS JSON API" as frankfurter
+
+user --> telegram : Sends EUR\nTelegram client protocol
+telegram --> app : POST /webhook/telegram\nHTTPS JSON
+app --> frankfurter : GET /v1/latest?base=USD\nHTTPS JSON
+app --> telegram : sendMessage\nHTTPS JSON
+
+legend right
+  <<Container>> = independently deployable application
+  <<Deployment Platform>> = runtime hosting the container
+  <<External Software System>> = dependency outside the bot
+endlegend
+@enduml

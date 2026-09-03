@@ -1,0 +1,20 @@
+@startuml
+title System Context diagram for Currency Telegram Bot
+left to right direction
+
+actor "Telegram user\n<<Person>>\nRequests a currency code such as EUR." as user
+rectangle "Currency Telegram Bot\n<<Software System>>\nReturns the value of 1 USD in a requested currency." as bot
+rectangle "Telegram Bot API\n<<External Software System>>\nDelivers updates and sends bot messages." as telegram
+rectangle "Frankfurter API\n<<External Software System>>\nProvides exchange rates based on USD." as frankfurter
+
+user --> telegram : Sends a currency code\nTelegram client protocol
+telegram --> bot : Delivers update\nHTTPS webhook
+bot --> telegram : Sends rate reply\nHTTPS Bot API
+bot --> frankfurter : Requests USD exchange rate\nHTTPS JSON API
+
+legend right
+  <<Person>> = human user
+  <<Software System>> = system in scope
+  <<External Software System>> = external dependency
+endlegend
+@enduml

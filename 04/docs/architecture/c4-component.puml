@@ -1,0 +1,27 @@
+@startuml
+title Component diagram for Currency Telegram Bot webhook application
+left to right direction
+
+component "Fastify webhook route\n<<Component>>\nserver.js, Fastify\nLogs and accepts POST /webhook/telegram." as route
+component "Handle Telegram Update\n<<Component>>\napplication/handle-telegram-update.js\nCoordinates one incoming Telegram update." as handle
+component "Get USD Rate\n<<Component>>\napplication/get-usd-rate.js\nValidates a currency code and obtains its USD quote." as usecase
+component "Currency helpers\n<<Component>>\ndomain/currency.js\nParses currency codes and formats rates." as domain
+component "Frankfurter rate provider\n<<Component>>\nadapters/frankfurter-rate-provider.js\nImplements exchange-rate access." as frankfurterAdapter
+component "Telegram Bot client\n<<Component>>\nadapters/telegram-bot-client.js\nImplements sendMessage." as telegramAdapter
+rectangle "Frankfurter API\n<<External Software System>>" as frankfurter
+rectangle "Telegram Bot API\n<<External Software System>>" as telegram
+
+route --> handle : Passes parsed update\nJavaScript call
+handle --> usecase : Requests USD rate\nJavaScript call
+handle --> domain : Formats reply\nJavaScript call
+usecase --> domain : Validates currency\nJavaScript call
+usecase --> frankfurterAdapter : Gets quote\nJavaScript call
+frankfurterAdapter --> frankfurter : GET latest rate\nHTTPS JSON
+handle --> telegramAdapter : Sends reply\nJavaScript call
+telegramAdapter --> telegram : sendMessage\nHTTPS JSON
+
+legend right
+  <<Component>> = replaceable code module inside the Fastify container
+  <<External Software System>> = dependency outside the container
+endlegend
+@enduml

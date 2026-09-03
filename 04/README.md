@@ -56,3 +56,9 @@ npm run set-webhook -- https://example.com
 - `src/domain` — чистые операции с кодом и форматированием валюты.
 - `src/adapters` — HTTP-интеграции с Frankfurter и Telegram.
 - `server.js` — composition root: создаёт зависимости и подключает Fastify endpoint.
+
+C4-диаграммы в Plain UML (PlantUML):
+
+- `docs/architecture/c4-context.puml`
+- `docs/architecture/c4-container.puml`
+- `docs/architecture/c4-component.puml`
