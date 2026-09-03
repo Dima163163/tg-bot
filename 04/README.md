@@ -47,3 +47,12 @@ npm run set-webhook -- https://example.com
 Туннелей в этой версии нет. Telegram должен иметь доступ к вашему публичному HTTPS-домену. При деплое на Vercel значение `BOT_TOKEN` нужно добавить в Environment Variables проекта.
 
 Для Vercel добавлен serverless entrypoint `api/index.js`. Он направляет публичный путь `/webhook/telegram` в Fastify endpoint.
+
+## Архитектура
+
+Без усложнения проект разделён на минимальные слои:
+
+- `src/application` — use cases: получение курса и обработка Telegram update.
+- `src/domain` — чистые операции с кодом и форматированием валюты.
+- `src/adapters` — HTTP-интеграции с Frankfurter и Telegram.
+- `server.js` — composition root: создаёт зависимости и подключает Fastify endpoint.
