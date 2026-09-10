@@ -1,0 +1,19 @@
+{
+  "name": "02-lesson",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --experimental-strip-types --test supabase/tests/webhook-test.mts",
+    "functions:serve": "supabase functions serve webhook --env-file .env --no-verify-jwt",
+    "functions:deploy": "supabase functions deploy webhook",
+    "set-webhook": "node --env-file=.env scripts/set-webhook.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "supabase": "^2.117.0"
+  }
+}
