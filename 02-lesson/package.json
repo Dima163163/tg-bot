@@ -7,7 +7,8 @@
     "test": "node --experimental-strip-types --test supabase/tests/webhook-test.mts",
     "functions:serve": "supabase functions serve webhook --env-file .env --no-verify-jwt",
     "functions:deploy": "supabase functions deploy webhook",
-    "set-webhook": "node --env-file=.env scripts/set-webhook.js"
+    "set-webhook": "node --env-file=.env scripts/set-webhook.js",
+    "deploy": "supabase functions deploy --use-api"
   },
   "keywords": [],
   "author": "",
