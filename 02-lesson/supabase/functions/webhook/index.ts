@@ -1,4 +1,5 @@
 import '@supabase/functions-js/edge-runtime.d.ts';
+import { withSupabase } from '@supabase/server';
 
 import { createFrankfurterRateProvider } from './src/adapters/frankfurter-rate-provider.ts';
 import { createTelegramBotClient } from './src/adapters/telegram-bot-client.ts';
@@ -12,15 +13,29 @@ const webhookSecret = Deno.env.get('TELEGRAM_WEBHOOK_SECRET') ?? '';
 const rateProvider = createFrankfurterRateProvider();
 const getUsdRate = createGetUsdRate({ rateProvider });
 const telegramClient = createTelegramBotClient({ botToken });
-const handleTelegramUpdate = createHandleTelegramUpdate({
-  getUsdRate,
-  telegramClient,
-});
+export const handler = withSupabase({ auth: 'none' }, async (req, ctx) => {
+  const handleTelegramUpdate = createHandleTelegramUpdate({
+    getUsdRate,
+    telegramClient,
+    async saveMessage(message) {
+      const { error } = await ctx.supabaseAdmin.rpc('save_telegram_message', {
+        p_update_id: message.updateId,
+        p_user_id: message.userId,
+        p_first_name: message.firstName,
+        p_last_name: message.lastName,
+        p_author: message.author,
+        p_body: message.body,
+        p_sent_at: message.sentAt,
+      });
+      if (error) throw error;
+    },
+  });
 
-export const handler = createWebhookHandler({
-  botToken,
-  webhookSecret,
-  handleTelegramUpdate,
+  return createWebhookHandler({
+    botToken,
+    webhookSecret,
+    handleTelegramUpdate,
+  })(req);
 });
 
 export default { fetch: handler };
