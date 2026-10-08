@@ -1,0 +1,4 @@
+interface:
+  display_name: "Регистрация Telegram webhook"
+  short_description: "Безопасная настройка webhook для своего бота"
+  default_prompt: "Используй $register-telegram-webhook, чтобы подключить моего Telegram-бота к моему Supabase-проекту."
