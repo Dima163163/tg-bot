@@ -22,3 +22,6 @@ create table public.messages (
   constraint messages_client_id_fkey foreign key (client_id) references public.clients (id),
   constraint messages_telegram_update_id_key unique (telegram_update_id)
 ) TABLESPACE pg_default;
+
+create index if not exists messages_client_created_id_idx
+  on public.messages (client_id, created_at desc, id desc);

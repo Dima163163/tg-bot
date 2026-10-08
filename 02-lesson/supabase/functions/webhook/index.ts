@@ -29,6 +29,14 @@ export const handler = withSupabase({ auth: 'none' }, async (req, ctx) => {
       });
       if (error) throw error;
     },
+    async saveBotReply(message) {
+      const { error } = await ctx.supabaseAdmin.rpc('save_telegram_bot_reply', {
+        p_user_id: message.userId,
+        p_body: message.body,
+        p_sent_at: message.sentAt,
+      });
+      if (error) throw error;
+    },
   });
 
   return createWebhookHandler({
