@@ -1,6 +1,3 @@
-import { formatRate } from '../domain/currency.ts';
-import type { GetUsdRateResult } from './get-usd-rate.ts';
-
 interface TelegramMessage {
   chat: {
     id: number;
@@ -43,35 +40,14 @@ interface TelegramClient {
 }
 
 interface HandleTelegramUpdateOptions {
-  getUsdRate: (messageText: unknown) => Promise<GetUsdRateResult>;
   telegramClient: TelegramClient;
   saveBotReply: (message: OutgoingTelegramMessage) => Promise<void>;
   saveMessage: (message: IncomingTelegramMessage) => Promise<void>;
 }
 
-function getReplyText(result: GetUsdRateResult): string {
-  if (result.type === 'invalid-currency') {
-    return 'Отправь трёхбуквенный код валюты, например: EUR, GBP или JPY.';
-  }
-
-  if (result.type === 'unsupported-currency') {
-    return (
-      'Frankfurter не предоставляет курс для ' +
-      result.currency +
-      '. Попробуй EUR, GBP или JPY.'
-    );
-  }
-
-  if (result.type === 'rate-unavailable') {
-    return 'Не удалось получить курс. Попробуй ещё раз чуть позже.';
-  }
-
-  const date = result.date ? '\nДата курса: ' + result.date : '';
-  return '1 USD = ' + formatRate(result.rate) + ' ' + result.currency + date;
-}
+const ACKNOWLEDGEMENT = 'Мы получили ваш запрос';
 
 export function createHandleTelegramUpdate({
-  getUsdRate,
   telegramClient,
   saveBotReply,
   saveMessage,
@@ -91,14 +67,12 @@ export function createHandleTelegramUpdate({
       sentAt: new Date(message.date * 1000).toISOString(),
     });
 
-    const result = await getUsdRate(message.text);
-    const replyText = getReplyText(result);
     await telegramClient.sendMessage({
       chatId,
-      text: replyText,
+      text: ACKNOWLEDGEMENT,
     });
     await saveBotReply({
-      body: replyText,
+      body: ACKNOWLEDGEMENT,
       sentAt: new Date().toISOString(),
       userId: String(message.from.id),
     });

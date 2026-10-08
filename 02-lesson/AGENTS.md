@@ -6,7 +6,7 @@
 
 - Это небольшой сервис из Telegram-бота и веб-панели для просмотра переписки с пользователями бота.
 - Рабочая директория проекта и запуска команд — `02-lesson/`; корень Git-репозитория расположен на уровень выше.
-- Бот ожидает трёхбуквенный код валюты (например, `EUR`), получает курс этой валюты к USD через Frankfurter и отправляет ответ. Некорректный код, неподдерживаемая валюта и временная ошибка курса обрабатываются отдельными ответами.
+- Бот сохраняет каждое входящее сообщение и отвечает фиксированным текстом «Мы получили ваш запрос». Ответ бота сохраняется после успешной отправки в Telegram; внешний API курсов валют не используется.
 - Входящее сообщение записывается в PostgreSQL до ответа бота. Ответ сохраняется как исходящее сообщение после успешной отправки в Telegram.
 - Веб-панель на основном маршруте `/` показывает список клиентов и историю выбранного диалога; поиск работает по имени и Telegram ID. История загружается страницами при прокрутке вверх, клиенты и сообщения периодически обновляются.
 - Основные сущности — `clients` (одна запись на Telegram-пользователя, Telegram ID и имя) и `messages` (клиент, автор, текст, время и тип сообщения: входящее или ответ бота). `telegram_update_id` защищает входящие сообщения от повторной записи.
@@ -17,7 +17,7 @@
 
 **Запись из Telegram:** пользователь пишет боту → Telegram отправляет `POST /functions/v1/webhook/telegram` → Supabase Edge Function `webhook` проверяет секретный заголовок и обрабатывает событие → через серверный RPC записывает клиента и сообщения в PostgreSQL. После сохранения входящего сообщения функция отвечает пользователю через Telegram API; успешно отправленный ответ бота также сохраняется в PostgreSQL.
 
-**Чтение из панели:** `web-messenger` выполняет `fetch` с `GET /functions/v1/clients` или `GET /functions/v1/messages` → соответствующая Supabase Edge Function `clients` или `messages` читает PostgreSQL → JSON-ответ возвращается через Edge Function в панель → интерфейс показывает клиентов и историю сообщений. Запросы запускаются через `web-messenger/src/shared/api/edge-functions.ts` и TanStack React Query. Панель **не** обращается к PostgreSQL напрямую и **не** вызывает Telegram webhook для загрузки истории; webhook принимает входящие события Telegram.
+**Запросы панели:** `web-messenger` вызывает Edge Functions `clients`, `messages` и `articles`; они читают PostgreSQL и возвращают JSON в панель. `articles` также поддерживает создание, изменение текста и удаление статей. Запросы запускаются через `web-messenger/src/shared/api/edge-functions.ts` и TanStack React Query. Панель **не** обращается к PostgreSQL напрямую и **не** вызывает Telegram webhook для загрузки истории; webhook принимает входящие события Telegram.
 
 При изменении потока сохраняй разделение ответственности: `webhook` — приём и запись событий, `clients`/`messages` — чтение для панели. Не помещай токен бота, секрет webhook или серверный ключ Supabase в клиентский код.
 
@@ -37,18 +37,20 @@
 | `package.json` | Корневые команды, зависимости React/Vite/TypeScript и Supabase CLI. |
 | `.env.example` | Имена конфигурационных переменных без настоящих секретов; `.env` исключён из Git. |
 | `web-messenger/AGENTS.md` | Подробные правила page-first FSD, Zustand, React Query и работы с UI. Читай при изменении панели. |
-| `web-messenger/src/main.tsx`, `web-messenger/src/app/` | Вход React, провайдер Query Client и маршрутизатор. |
+| `web-messenger/src/main.tsx`, `web-messenger/src/app/` | Вход React, глобальные стили, провайдер Query Client и маршрутизатор. |
 | `web-messenger/src/pages/messenger/` | Экран диалогов, CSS, загрузка клиентов и сообщений, состояния UI. В `model/store.ts` — Zustand; в `model/client.ts` и `model/message.ts` — типы и функции запросов. |
-| `web-messenger/src/shared/api/edge-functions.ts` | Общий `fetch` для Edge Functions, URL проекта и заголовок `apikey`. |
+| `web-messenger/src/pages/articles/` | Экран `/articles`: таблица, курсорная подгрузка, CRUD-модель и React Query hooks. |
+| `web-messenger/src/shared/api/` | Общий `fetch` для Edge Functions (`edge-functions.ts`), конфигурация URL и публичного ключа (`supabase-config.ts`), единственный лениво создаваемый клиент Supabase Realtime (`realtime-client.ts`). |
 | `web-messenger/src/shared/ui/`, `web-messenger/src/shared/lib/` | Общие UI-примитивы и утилиты панели. |
 | `supabase/config.toml` | Локальная конфигурация Supabase и `verify_jwt` отдельных Edge Functions. |
 | `supabase/functions/webhook/index.ts` | Сборка обработчика Telegram, серверные секреты, вызовы RPC для записи сообщений. |
 | `supabase/functions/webhook/src/http/` | Проверка пути, метода POST и заголовка `X-Telegram-Bot-Api-Secret-Token`. |
-| `supabase/functions/webhook/src/application/`, `supabase/functions/webhook/src/domain/`, `supabase/functions/webhook/src/adapters/` | Разбор Telegram-события, логика курса валют, Telegram API и провайдер Frankfurter. |
+| `supabase/functions/webhook/src/application/`, `supabase/functions/webhook/src/adapters/` | Разбор Telegram-события, фиксированный ответ бота, Telegram API и сохранение сообщений. |
 | `supabase/functions/clients/index.ts`, `messages/index.ts` | GET-эндпоинты панели: список клиентов и история сообщений с курсорной пагинацией. |
+| `supabase/functions/articles/index.ts` | Публичный CRUD для статей: GET списка с курсорной пагинацией, POST создания, PATCH текста и DELETE по ID. Таблица закрыта для прямого anon-доступа; функция работает через `supabaseAdmin`. |
 | `supabase/functions/hello-world/`, `hello-it-incubator/` | Примерные функции; не входят в основной поток бота и панели. |
 | `sql/tables.sql` | Структура `clients` и `messages` для создания таблиц с нуля. |
-| `sql/telegram-sync.sql` | Индексы, дедупликация Telegram `update_id`, серверные RPC и права выполнения. |
+| `sql/telegram-sync.sql` | Индексы, дедупликация Telegram `update_id`, серверные RPC, права выполнения и настройка Realtime для `messages`. |
 | `sql/01-backfill-create-clients.sql`, `02-backfill-set-client-id.sql` | Скрипты переноса существующих данных; не путай с определением актуальной схемы. |
 | `supabase/migrations/` | Миграции Supabase; сейчас здесь есть отдельная миграция для сохранения ответов бота. Не считай каталог полным описанием схемы без проверки `sql/`. |
 | `supabase/tests/` | Тесты webhook (`webhook-test.mts`) и отдельный SQL-тест синхронизации (`telegram-sync-test.sql`). |
@@ -62,10 +64,15 @@
 | Telegram → сервер | `POST /functions/v1/webhook/telegram` | JSON update, заголовок `X-Telegram-Bot-Api-Secret-Token`; секрет сравнивается в обработчике. |
 | Панель → клиенты | `GET /functions/v1/clients` | Массив клиентов из `public.clients`. |
 | Панель → сообщения | `GET /functions/v1/messages?client_id=ID&limit=7&cursor=...` | `{ data, hasMore, nextCursor }`; `cursor` необязателен, максимум 50 записей за запрос. |
+| Панель → статьи | `GET /functions/v1/articles?limit=20&cursor=...` | `{ data, hasMore, nextCursor }`; курсор необязателен, максимум 50 статей за запрос. |
+| Панель → создать статью | `POST /functions/v1/articles` | JSON `{ "title": "Заголовок", "body": "Текст" }`; возвращает созданную статью. |
+| Панель → изменить текст статьи | `PATCH /functions/v1/articles` | JSON `{ "id": 123, "body": "Новый текст" }`; возвращает обновлённую статью. |
+| Панель → удалить статью | `DELETE /functions/v1/articles?id=123` | Удаляет статью и возвращает `204`; если ID не найден — `404`. |
 
 - `VITE_SUPABASE_URL` задаёт проект для панели. Если он не установлен, в `web-messenger/src/shared/api/edge-functions.ts` используется адрес исходного проекта `cappgvetnxvjhnxufhkz`; при тестировании в личном проекте укажи собственный URL явно. `VITE_SUPABASE_ANON_KEY` в текущем транспорте необязателен.
 - `BOT_TOKEN` и `TELEGRAM_WEBHOOK_SECRET` нужны только серверной функции `webhook`. Не передавай их в чат и не добавляй в переменные `VITE_*`: они попадают в браузерную сборку.
-- `webhook`, `clients` и `messages` настроены с `verify_jwt = false`. Webhook отдельно проверяет секрет Telegram. Текущие `clients` и `messages` читают базу через серверный `supabaseAdmin` без авторизации пользователя: **их ответы публично доступны по URL**. Не считай эти эндпоинты защищёнными и не расширяй объём выдачи без отдельного решения по доступу.
+- `webhook`, `clients`, `messages` и `articles` настроены с `verify_jwt = false`. Webhook отдельно проверяет секрет Telegram. `clients`, `messages` и `articles` используют `supabaseAdmin` без авторизации пользователя; их соответствующие операции публично доступны по URL. Сейчас любой вызывающий может читать, создавать, менять и удалять статьи.
+- Для Realtime таблица `public.messages` входит в публикацию `supabase_realtime`; политика `anon can read messages for realtime` разрешает роли `anon` читать все строки `messages`. Это также делает прямое чтение таблицы через Data API публичным. Не помещай в таблицу данные, которые не должны быть доступны посетителям с публичным ключом проекта.
 - Панель не использует Supabase Realtime: запросы клиентов и сообщений обновляются периодически (`refetchInterval: 30_000`) и вручную. Новая запись в PostgreSQL не появляется мгновенно в уже открытой панели.
 
 ## Команды и проверки

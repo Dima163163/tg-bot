@@ -97,4 +97,29 @@ revoke all on function public.save_telegram_bot_reply(text, text, timestamptz)
 grant execute on function public.save_telegram_bot_reply(text, text, timestamptz)
   to service_role;
 
+-- Keep the manual setup path in sync with the Supabase migration.
+alter table public.messages enable row level security;
+grant select on table public.messages to anon;
+
+drop policy if exists "anon can read messages for realtime" on public.messages;
+create policy "anon can read messages for realtime"
+  on public.messages
+  for select
+  to anon
+  using (true);
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'messages'
+  ) then
+    execute 'alter publication supabase_realtime add table public.messages';
+  end if;
+end;
+$$;
+
 commit;

@@ -10,11 +10,13 @@
 | --- | --- |
 | `src/main.tsx` | Вход в React-приложение и `StrictMode`. |
 | `src/app/App.tsx` | `QueryClientProvider` и `RouterProvider`; здесь создаётся конфигурация Query Client. |
-| `src/app/router.tsx` | Дерево маршрутов и подключение страниц. |
+| `src/app/router.tsx`, `src/app/app.css` | Дерево маршрутов, глобальные стили и подключение страниц. |
 | `src/pages/messenger/MessengerPage.tsx` | Сборка экрана диалогов, запросы, состояния загрузки и взаимодействия. |
+| `src/pages/articles/` | Страница `/articles`: список статей, курсорная подгрузка и действия создания, редактирования и удаления. |
 | `src/pages/messenger/model/store.ts` | Состояние интерфейса мессенджера в Zustand. |
-| `src/pages/messenger/model/client.ts` и `message.ts` | Типы и запросы, используемые страницей; текущий проект пока держит их в `model/`. |
-| `src/shared/api/edge-functions.ts` | Общий HTTP-транспорт для Edge Functions. |
+| `src/pages/messenger/model/client.ts`, `message.ts` и `use-realtime-messages.ts` | Типы, запросы и Realtime-подписка страницы; текущий проект пока держит их в `model/`. |
+| `src/pages/articles/model/article.ts`, `use-articles.ts` | Тип статьи, проверка ответов Edge Function, CRUD-запросы и React Query hooks для курсорных страниц и мутаций. |
+| `src/shared/api/edge-functions.ts`, `supabase-config.ts` и `realtime-client.ts` | Общий HTTP-транспорт, конфигурация Supabase и singleton-клиент Realtime. |
 | `src/shared/ui/`, `src/shared/lib/` | Общие UI-примитивы и технические утилиты. |
 
 Команды запускаются из корня репозитория: `npm run dev` поднимает Vite, `npm run build` выполняет TypeScript-сборку и Vite build. `npm test` сейчас проверяет webhook в `supabase/` и не является проверкой клиентского интерфейса. В `tsconfig.app.json` включён `strict`; алиасы импортов в текущей конфигурации не настроены.

@@ -1,10 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import type { Client } from './model/client';
 import { getClients } from './model/client';
 import type { Message } from './model/message';
-import { getMessages } from './model/message';
+import { getClientMessagesQueryKey, getMessages, messagesQueryKey } from './model/message';
 import { useMessengerStore } from './model/store';
+import { useRealtimeMessages } from './model/use-realtime-messages';
 import { Avatar, AvatarFallback } from '../../shared/ui/avatar';
 import { Badge } from '../../shared/ui/badge';
 import { Button } from '../../shared/ui/button';
@@ -14,7 +16,6 @@ import { Separator } from '../../shared/ui/separator';
 import './messenger.css';
 
 const clientsQueryKey = ['clients'] as const;
-const messagesQueryKey = ['messages'] as const;
 
 function clientName(client: Client): string {
   const name = [client.first_name, client.last_name].filter(Boolean).join(' ').trim();
@@ -53,6 +54,7 @@ function isBotMessage(message: Message): boolean {
 export function MessengerPage() {
   const queryClient = useQueryClient();
   const selectedClientId = useMessengerStore((state) => state.selectedClientId);
+  useRealtimeMessages(selectedClientId);
   const selectClient = useMessengerStore((state) => state.selectClient);
   const search = useMessengerStore((state) => state.search);
   const setSearch = useMessengerStore((state) => state.setSearch);
@@ -77,7 +79,7 @@ export function MessengerPage() {
     refetchInterval: 30_000,
   });
   const messagesQuery = useInfiniteQuery({
-    queryKey: [...messagesQueryKey, selectedClientId],
+    queryKey: getClientMessagesQueryKey(selectedClientId),
     queryFn: ({ pageParam }) => {
       if (selectedClientId === null) throw new Error('Клиент не выбран');
       return getMessages({ clientId: selectedClientId, cursor: pageParam });
@@ -251,6 +253,10 @@ export function MessengerPage() {
             <h1>Диалоги</h1>
           </div>
         </div>
+        <nav className="app-navigation" aria-label="Основная навигация">
+          <Link activeProps={{ 'aria-current': 'page' }} className="app-nav-link" to="/">Диалоги</Link>
+          <Link activeProps={{ 'aria-current': 'page' }} className="app-nav-link" to="/articles">Статьи</Link>
+        </nav>
         <Button className="refresh-button" onClick={refreshData} type="button" variant="outline" size="sm" aria-label="Обновить диалоги">
           <span aria-hidden="true">↻</span>
           Обновить
