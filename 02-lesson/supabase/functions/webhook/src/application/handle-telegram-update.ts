@@ -32,6 +32,12 @@ export interface IncomingTelegramMessage {
   sentAt: string;
 }
 
+export interface OutgoingTelegramMessage {
+  body: string;
+  sentAt: string;
+  userId: string;
+}
+
 interface TelegramClient {
   sendMessage(input: { chatId: number; text: string }): Promise<void>;
 }
@@ -39,6 +45,7 @@ interface TelegramClient {
 interface HandleTelegramUpdateOptions {
   getUsdRate: (messageText: unknown) => Promise<GetUsdRateResult>;
   telegramClient: TelegramClient;
+  saveBotReply: (message: OutgoingTelegramMessage) => Promise<void>;
   saveMessage: (message: IncomingTelegramMessage) => Promise<void>;
 }
 
@@ -66,6 +73,7 @@ function getReplyText(result: GetUsdRateResult): string {
 export function createHandleTelegramUpdate({
   getUsdRate,
   telegramClient,
+  saveBotReply,
   saveMessage,
 }: HandleTelegramUpdateOptions): (update: unknown) => Promise<void> {
   return async function handleTelegramUpdate(update) {
@@ -84,9 +92,15 @@ export function createHandleTelegramUpdate({
     });
 
     const result = await getUsdRate(message.text);
+    const replyText = getReplyText(result);
     await telegramClient.sendMessage({
       chatId,
-      text: getReplyText(result),
+      text: replyText,
+    });
+    await saveBotReply({
+      body: replyText,
+      sentAt: new Date().toISOString(),
+      userId: String(message.from.id),
     });
   };
 }

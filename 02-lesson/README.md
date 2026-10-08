@@ -5,11 +5,11 @@
 Просмотр данных в браузере:
 
 - Клиенты: https://cappgvetnxvjhnxufhkz.supabase.co/functions/v1/clients
-- Сообщения: https://cappgvetnxvjhnxufhkz.supabase.co/functions/v1/messages
+- Сообщения: `https://cappgvetnxvjhnxufhkz.supabase.co/functions/v1/messages?client_id=CLIENT_ID&limit=7`
 
 После отправки сообщения обнови страницу с JSON. Данные не обновляются на уже
-открытой странице автоматически. Простые GET-функции возвращают до лимита Data API
-(сейчас 1000 записей за один запрос).
+открытой странице автоматически. Список клиентов возвращается одним запросом, а
+сообщения выдаются страницами по 7 записей (максимум 50 за запрос).
 
 ## Как проходит сообщение
 
@@ -26,10 +26,13 @@
 6. SQL-функция создаёт или обновляет клиента, затем сохраняет сообщение со ссылкой
    на этого клиента. Обе записи выполняются в одной транзакции: при ошибке
    изменения этой операции откатываются.
-7. После сохранения бот продолжает прежнюю логику ответа о курсе валют.
+7. После сохранения бот отправляет ответ о курсе валют. После успешной отправки
+   этот ответ также сохраняется у того же клиента как исходящее сообщение бота.
 8. Открытие `/clients` или `/messages` вызывает отдельную Edge Function:
-   `ctx.supabaseAdmin.from('clients' или 'messages').select('*')` читает таблицу,
-   а `Response.json(data)` возвращает массив в браузер.
+   `ctx.supabaseAdmin.from('clients' или 'messages').select('*')` читает таблицу.
+   Сообщения загружаются курсорами: функция принимает `client_id`, `limit` и
+   необязательный `cursor`, возвращая `{ data, hasMore, nextCursor }`. Следующий
+   `cursor` запрашивает более старую страницу сообщений.
 
 ## Какие поля сохраняются
 
@@ -40,16 +43,16 @@
 | `clients.last_name` | `message.from.last_name`, либо `null` |
 | `clients.last_message_at` | Дата самого нового сообщения, UTC |
 | `clients.created_at` | Время создания клиента, выставляет база |
-| `messages.telegram_update_id` | `update_id` события Telegram |
-| `messages.created_at` | `message.date` — время отправки сообщения |
-| `messages.author` | Username; если его нет — имя и фамилия |
-| `messages.body` | `message.text`, либо подпись `message.caption`, либо `null` |
-| `messages.messenger_user_id` | `message.from.id`, записанный строкой |
-| `messages.messenger_type` | Строка `telegram` |
+| `messages.telegram_update_id` | `update_id` входящего события Telegram; у исходящего ответа бота — `null` |
+| `messages.created_at` | `message.date` для клиента; время успешной отправки для ответа бота |
+| `messages.author` | Username клиента; для ответа бота — `bot` |
+| `messages.body` | Текст/подпись клиента или текст ответа бота |
+| `messages.messenger_user_id` | `message.from.id`, записанный строкой; для ответа бота — `null` |
+| `messages.messenger_type` | `telegram` для клиента, `telegram_bot` для ответа бота |
 | `messages.client_id` | ID соответствующего клиента в нашей базе |
 
 Вложения не скачиваются. У сообщения без текста и подписи `body` будет `null`.
-Хранятся входящие сообщения пользователей, а не ответы самого бота.
+Хранятся и входящие сообщения пользователей, и успешные ответы самого бота.
 
 ## Зачем нужны изменения SQL
 

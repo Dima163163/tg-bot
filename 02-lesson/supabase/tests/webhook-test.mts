@@ -5,7 +5,10 @@ import { createFrankfurterRateProvider } from '../functions/webhook/src/adapters
 import { createTelegramBotClient } from '../functions/webhook/src/adapters/telegram-bot-client.ts';
 import { createGetUsdRate } from '../functions/webhook/src/application/get-usd-rate.ts';
 import { createHandleTelegramUpdate } from '../functions/webhook/src/application/handle-telegram-update.ts';
-import type { IncomingTelegramMessage } from '../functions/webhook/src/application/handle-telegram-update.ts';
+import type {
+  IncomingTelegramMessage,
+  OutgoingTelegramMessage,
+} from '../functions/webhook/src/application/handle-telegram-update.ts';
 import { createWebhookHandler } from '../functions/webhook/src/http/webhook-handler.ts';
 
 function createJsonResponse(body: unknown, status = 200): Response {
@@ -18,6 +21,7 @@ function createJsonResponse(body: unknown, status = 200): Response {
 function createTestHandler(
   requests: Array<{ url: string; options?: RequestInit }>,
   saveMessage: (message: IncomingTelegramMessage) => Promise<void> = async () => {},
+  saveBotReply: (message: OutgoingTelegramMessage) => Promise<void> = async () => {},
 ): (request: Request) => Promise<Response> {
   const fetchFn: typeof fetch = async (input, options) => {
     const url = String(input);
@@ -43,6 +47,7 @@ function createTestHandler(
     getUsdRate,
     telegramClient,
     saveMessage,
+    saveBotReply,
   });
 
   return createWebhookHandler({
@@ -148,6 +153,46 @@ test('saves sender, body and Telegram timestamp before replying', async () => {
     updateId: 100, userId: '123', firstName: 'Anna', lastName: 'Test',
     author: 'anna_test', body: 'Hello', sentAt: new Date(1_789_632_000 * 1000).toISOString(),
   }]);
+});
+
+test('saves a bot reply after Telegram accepts it', async () => {
+  const requests: Array<{ url: string; options?: RequestInit }> = [];
+  const savedReplies: OutgoingTelegramMessage[] = [];
+  const handler = createTestHandler(
+    requests,
+    async () => {},
+    async (message) => {
+      assert.equal(requests.length, 2);
+      savedReplies.push(message);
+    },
+  );
+
+  const response = await handler(createTelegramRequest(telegramUpdate('eur')));
+
+  assert.equal(response.status, 200);
+  assert.equal(savedReplies.length, 1);
+  assert.equal(savedReplies[0].userId, '123');
+  assert.equal(savedReplies[0].body, '1 USD = 0,86371 EUR\nДата курса: 2026-09-02');
+  assert.ok(Number.isFinite(Date.parse(savedReplies[0].sentAt)));
+});
+
+test('does not save a bot reply when Telegram rejects it', async () => {
+  let savedReplies = 0;
+  const handleTelegramUpdate = createHandleTelegramUpdate({
+    getUsdRate: async () => ({ type: 'invalid-currency' }),
+    telegramClient: {
+      async sendMessage() {
+        throw new Error('Telegram API request failed');
+      },
+    },
+    saveMessage: async () => {},
+    saveBotReply: async () => {
+      savedReplies += 1;
+    },
+  });
+
+  await assert.rejects(() => handleTelegramUpdate(telegramUpdate()));
+  assert.equal(savedReplies, 0);
 });
 
 test('uses the sender ID rather than group chat ID and preserves captions', async () => {
