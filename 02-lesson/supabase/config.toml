@@ -452,3 +452,9 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/clients/deno.json"
 entrypoint = "./functions/clients/index.ts"
+
+[functions.articles]
+enabled = true
+verify_jwt = false
+import_map = "./functions/articles/deno.json"
+entrypoint = "./functions/articles/index.ts"

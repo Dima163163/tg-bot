@@ -1,14 +1,11 @@
-const fallbackSupabaseUrl = 'https://cappgvetnxvjhnxufhkz.supabase.co';
-
-const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || fallbackSupabaseUrl).replace(/\/$/, '');
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+import { supabaseApiKey, supabaseUrl } from './supabase-config';
 
 export async function callEdgeFunction<T>(functionName: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   headers.set('Content-Type', 'application/json');
 
-  if (supabaseAnonKey) {
-    headers.set('apikey', supabaseAnonKey);
+  if (supabaseApiKey) {
+    headers.set('apikey', supabaseApiKey);
   }
 
   const response = await fetch(`${supabaseUrl}/functions/v1/${functionName}`, {
@@ -26,6 +23,8 @@ export async function callEdgeFunction<T>(functionName: string, init?: RequestIn
     }
     throw new Error(`Не удалось загрузить данные (${response.status})${detail}`);
   }
+
+  if (response.status === 204) return undefined as T;
 
   return (await response.json()) as T;
 }

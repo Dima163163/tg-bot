@@ -1,6 +1,11 @@
 import { callEdgeFunction } from '../../../shared/api/edge-functions';
 
 export const MESSAGE_PAGE_SIZE = 7;
+export const messagesQueryKey = ['messages'] as const;
+
+export function getClientMessagesQueryKey(clientId: number | null) {
+  return [...messagesQueryKey, clientId] as const;
+}
 
 export interface Message {
   id: number;

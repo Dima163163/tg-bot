@@ -1,9 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createFrankfurterRateProvider } from '../functions/webhook/src/adapters/frankfurter-rate-provider.ts';
 import { createTelegramBotClient } from '../functions/webhook/src/adapters/telegram-bot-client.ts';
-import { createGetUsdRate } from '../functions/webhook/src/application/get-usd-rate.ts';
 import { createHandleTelegramUpdate } from '../functions/webhook/src/application/handle-telegram-update.ts';
 import type {
   IncomingTelegramMessage,
@@ -26,25 +24,14 @@ function createTestHandler(
   const fetchFn: typeof fetch = async (input, options) => {
     const url = String(input);
     requests.push({ url, options });
-
-    if (url.startsWith('https://api.frankfurter.dev/')) {
-      return createJsonResponse({
-        date: '2026-09-02',
-        rates: { EUR: 0.86371 },
-      });
-    }
-
     return createJsonResponse({ ok: true });
   };
 
-  const rateProvider = createFrankfurterRateProvider({ fetchFn });
-  const getUsdRate = createGetUsdRate({ rateProvider });
   const telegramClient = createTelegramBotClient({
     botToken: 'test-token',
     fetchFn,
   });
   const handleTelegramUpdate = createHandleTelegramUpdate({
-    getUsdRate,
     telegramClient,
     saveMessage,
     saveBotReply,
@@ -81,7 +68,7 @@ function createTelegramRequest(body: unknown, path = '/functions/v1/webhook/tele
   });
 }
 
-test('replies with the USD rate for a currency code', async () => {
+test('replies with a fixed acknowledgement without calling a currency API', async () => {
   const requests: Array<{ url: string; options?: RequestInit }> = [];
   const handler = createTestHandler(requests);
 
@@ -91,27 +78,27 @@ test('replies with the USD rate for a currency code', async () => {
 
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { ok: true });
-  assert.equal(requests.length, 2);
-  assert.match(requests[0].url, /base=USD$/);
-  assert.deepEqual(JSON.parse(String(requests[1].options?.body)), {
+  assert.equal(requests.length, 1);
+  assert.match(requests[0].url, /^https:\/\/api\.telegram\.org\//);
+  assert.deepEqual(JSON.parse(String(requests[0].options?.body)), {
     chat_id: 123,
-    text: '1 USD = 0,86371 EUR\nДата курса: 2026-09-02',
+    text: 'Мы получили ваш запрос',
   });
 });
 
-test('explains the message format for invalid input', async () => {
+test('uses the same acknowledgement for arbitrary message text', async () => {
   const requests: Array<{ url: string; options?: RequestInit }> = [];
   const handler = createTestHandler(requests);
 
-  const response = await handler(
-    createTelegramRequest(telegramUpdate('курс рубля')),
-  );
+  for (const text of ['курс рубля', 'любой другой текст']) {
+    const response = await handler(createTelegramRequest(telegramUpdate(text)));
+    assert.equal(response.status, 200);
+  }
 
-  assert.equal(response.status, 200);
-  assert.equal(requests.length, 1);
-  assert.equal(
-    JSON.parse(String(requests[0].options?.body)).text,
-    'Отправь трёхбуквенный код валюты, например: EUR, GBP или JPY.',
+  assert.equal(requests.length, 2);
+  assert.deepEqual(
+    requests.map((request) => JSON.parse(String(request.options?.body)).text),
+    ['Мы получили ваш запрос', 'Мы получили ваш запрос'],
   );
 });
 
@@ -162,7 +149,7 @@ test('saves a bot reply after Telegram accepts it', async () => {
     requests,
     async () => {},
     async (message) => {
-      assert.equal(requests.length, 2);
+      assert.equal(requests.length, 1);
       savedReplies.push(message);
     },
   );
@@ -172,14 +159,13 @@ test('saves a bot reply after Telegram accepts it', async () => {
   assert.equal(response.status, 200);
   assert.equal(savedReplies.length, 1);
   assert.equal(savedReplies[0].userId, '123');
-  assert.equal(savedReplies[0].body, '1 USD = 0,86371 EUR\nДата курса: 2026-09-02');
+  assert.equal(savedReplies[0].body, 'Мы получили ваш запрос');
   assert.ok(Number.isFinite(Date.parse(savedReplies[0].sentAt)));
 });
 
 test('does not save a bot reply when Telegram rejects it', async () => {
   let savedReplies = 0;
   const handleTelegramUpdate = createHandleTelegramUpdate({
-    getUsdRate: async () => ({ type: 'invalid-currency' }),
     telegramClient: {
       async sendMessage() {
         throw new Error('Telegram API request failed');

@@ -8,6 +8,8 @@
     "build": "tsc -b web-messenger/tsconfig.json && vite build --config web-messenger/vite.config.ts",
     "preview": "vite preview --config web-messenger/vite.config.ts",
     "test": "node --experimental-strip-types --test supabase/tests/webhook-test.mts",
+    "db:push:dry": "supabase db push --linked --dry-run",
+    "db:push": "supabase db push --linked",
     "functions:serve": "supabase functions serve webhook --env-file .env --no-verify-jwt",
     "functions:deploy": "supabase functions deploy webhook",
     "set-webhook": "node --env-file=.env scripts/set-webhook.js",
@@ -27,6 +29,7 @@
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.3.3",
+    "@supabase/realtime-js": "2.117.2",
     "@tanstack/react-query": "^5.104.1",
     "@tanstack/react-router": "^1.170.41",
     "class-variance-authority": "^0.7.1",

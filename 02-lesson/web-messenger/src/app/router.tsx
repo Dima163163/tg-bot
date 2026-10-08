@@ -1,4 +1,5 @@
 import { createRootRoute, createRoute, createRouter, Outlet } from '@tanstack/react-router';
+import { ArticlesPage } from '../pages/articles';
 import { MessengerPage } from '../pages/messenger/MessengerPage';
 
 const rootRoute = createRootRoute({
@@ -11,7 +12,13 @@ const messengerRoute = createRoute({
   component: MessengerPage,
 });
 
-const routeTree = rootRoute.addChildren([messengerRoute]);
+const articlesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/articles',
+  component: ArticlesPage,
+});
+
+const routeTree = rootRoute.addChildren([messengerRoute, articlesRoute]);
 
 export const router = createRouter({ routeTree });
 
