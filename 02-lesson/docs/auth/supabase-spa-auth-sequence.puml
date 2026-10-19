@@ -1,0 +1,143 @@
+@startuml
+title Supabase Auth для SPA: вход по email/password и жизненный цикл сессии
+autonumber
+hide footbox
+
+' Справочная схема supabase-js v2; не описание реализации web-messenger.
+' Официальные источники, проверены 2026-10-19:
+' https://supabase.com/docs/reference/javascript/initializing
+' https://supabase.com/docs/reference/javascript/auth-signinwithpassword
+' https://supabase.com/docs/reference/javascript/auth-onauthstatechange
+' https://supabase.com/docs/reference/javascript/auth-startautorefresh
+' https://supabase.com/docs/guides/auth/sessions
+' https://supabase.com/docs/guides/auth/signout
+' https://supabase.com/docs/guides/database/postgres/row-level-security
+
+actor "Пользователь" as User
+participant "SPA / интерфейс" as SPA
+participant "supabase-js\nв браузере" as SDK
+database "localStorage\nбраузера" as Storage
+participant "Supabase Auth" as Auth
+participant "Supabase Data API\nPostgREST" as API
+database "PostgreSQL\nauth + public" as DB
+
+note over SPA, DB
+  Справочный сценарий: пользователь зарегистрирован, вход разрешён.
+  Таблица todos условная: настроены GRANT SELECT и RLS-политика
+  для роли authenticated с условием auth.uid() = user_id.
+end note
+
+== 1. Запуск SPA и восстановление состояния ==
+User -> SPA: Открыть приложение
+SPA -> SDK: createClient(SUPABASE_URL, publishableKey)\npersistSession: true, autoRefreshToken: true
+SPA -> SDK: auth.onAuthStateChange(callback)
+SDK -> Storage: Прочитать сохранённую session
+Storage --> SDK: session или null
+SDK -> SDK: Восстановить session; при необходимости\nобновить токены через Auth (см. раздел 4)
+SDK --> SPA: INITIAL_SESSION(session или null)
+SPA -> SPA: Обновить состояние интерфейса
+
+note over SDK, Storage
+  В стандартной браузерной конфигурации SDK сохраняет
+  access_token, refresh_token и срок действия сессии в localStorage.
+  Для этого потока HttpOnly cookie не используется.
+  Локальное состояние UI само по себе не даёт доступ к данным.
+end note
+
+== 2. Вход, если сессии нет ==
+opt Нет восстановленной session
+    User -> SPA: Ввести email и пароль
+    SPA -> SDK: auth.signInWithPassword({ email, password })
+    SDK -> Auth: POST /auth/v1/token?grant_type=password\napikey: publishableKey; JSON: email, password
+    Auth -> DB: Найти пользователя в auth.users
+    DB --> Auth: Учётная запись
+    Auth -> Auth: Проверить пароль и возможность входа
+
+    alt Вход отклонён
+        Auth --> SDK: Ошибка Auth
+        SDK --> SPA: { data, error }
+        SPA --> User: Показать ошибку входа
+    else Вход разрешён
+        Auth -> DB: Создать сессию и состояние refresh token
+        DB --> Auth: Сессия создана
+        Auth --> SDK: access_token (JWT), refresh_token,\nexpires_in, user
+        SDK -> Storage: Сохранить session
+        SDK --> SPA: SIGNED_IN(session)\nи результат signInWithPassword: { data, error: null }
+        SPA --> User: Показать личный кабинет
+    end
+end
+
+opt Session получена или восстановлена
+    == 3. Запрос данных с access token ==
+    SPA -> SDK: from('todos').select('*')
+    SDK -> API: GET /rest/v1/todos?select=*\napikey: publishableKey\nAuthorization: Bearer access_token
+    API -> API: Проверить подпись и срок действия JWT
+
+    alt JWT недействителен или истёк
+        API --> SDK: 401 Unauthorized
+        SDK --> SPA: Ошибка запроса
+    else JWT действителен
+        API -> DB: SELECT с ролью authenticated\nи claims пользователя из JWT
+        DB -> DB: Проверить GRANT и применить RLS\nauth.uid() = user_id
+        DB --> API: Разрешённые строки (возможно, пустой список)
+        API --> SDK: 200 JSON
+        SDK --> SPA: { data, error: null }
+    end
+
+    == 4. Автоматическое обновление сессии ==
+    SDK -> SDK: Обнаружить приближение expires_at\nпри активной вкладке / её возвращении на передний план
+    SDK -> Auth: POST /auth/v1/token?grant_type=refresh_token\napikey: publishableKey; JSON: refresh_token
+    Auth -> DB: Проверить refresh token и состояние сессии
+    DB --> Auth: Результат проверки
+
+    alt Refresh разрешён
+        Auth -> DB: Обновить состояние refresh token (ротация)
+        DB --> Auth: Сохранено
+        Auth --> SDK: Новый access_token, refresh_token, expires_in
+        SDK -> Storage: Заменить сохранённую session
+        SDK --> SPA: TOKEN_REFRESHED(session)
+        note over SDK, API
+          Следующие запросы SDK используют новый access_token.
+          Обновление запускается заранее и не требует первого 401.
+        end note
+    else Сессия отозвана / refresh token окончательно недействителен
+        Auth --> SDK: Ошибка Auth без возможности повторного refresh
+        SDK -> Storage: Удалить session
+        SDK --> SPA: SIGNED_OUT, session = null
+        SPA --> User: Показать форму входа
+    else Временная ошибка сервера или сети
+        Auth --> SDK: Повторяемая ошибка / ответ не получен
+        SDK -> SDK: Повторить refresh с задержкой;\nсохранить локальную session на время повторов
+        note over SPA, SDK
+          Повторы сами по себе не продлевают срок access_token.
+          С истёкшим JWT запросы данных не проходят проверку.
+        end note
+    end
+
+    == 5. Выход из текущей сессии ==
+    opt Session остаётся активной и пользователь нажимает «Выйти»
+        User -> SPA: Выйти
+        SPA -> SDK: auth.signOut({ scope: 'local' })
+        SDK -> Auth: POST /auth/v1/logout?scope=local\napikey: publishableKey\nAuthorization: Bearer access_token
+
+        alt Выход успешно выполнен
+            Auth -> DB: Завершить текущую сессию\nи отозвать её refresh tokens
+            DB --> Auth: Выполнено
+            Auth --> SDK: 204 No Content
+            SDK -> Storage: Удалить session
+            SDK --> SPA: SIGNED_OUT, session = null
+            SPA --> User: Показать форму входа
+        else Сетевая ошибка / ошибка сервера
+            Auth --> SDK: Ошибка выхода
+            SDK --> SPA: { error }
+            SPA --> User: Сообщить об ошибке, предложить повтор
+        end
+    end
+end
+
+note over Auth, DB
+  signOut() без scope использует global: завершает все сессии пользователя.
+  Здесь явно выбран local. Уже выданный access JWT сохраняет действие
+  до exp, если API не делает дополнительную проверку отзыва сессии.
+end note
+@enduml
