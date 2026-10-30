@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import type { FormEvent } from 'react';
-import { Link } from '@tanstack/react-router';
+import { useForm } from 'react-hook-form';
+import { NavLink } from 'react-router';
+import { AuthStatus } from '../../features/auth';
 import { Button } from '../../shared/ui/button';
 import { Input } from '../../shared/ui/input';
 import type { Article } from './model/article';
@@ -31,46 +32,35 @@ export function ArticlesPage() {
   const updateMutation = useUpdateArticleBody();
   const deleteMutation = useDeleteArticle();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  const [newBody, setNewBody] = useState('');
-  const [createValidationError, setCreateValidationError] = useState<string | null>(null);
-  const [editingArticle, setEditingArticle] = useState<{ id: number; body: string } | null>(null);
+  const createForm = useForm<{ title: string; body: string }>({ defaultValues: { title: '', body: '' } });
+  const editForm = useForm<{ body: string }>({ defaultValues: { body: '' } });
+  const [editingArticleId, setEditingArticleId] = useState<number | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   const pages = articlesQuery.data?.pages ?? [];
   const articles = pages.flatMap((page) => page.data);
 
-  function handleCreateSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const title = newTitle.trim();
-    if (!title) {
-      setCreateValidationError('Укажите заголовок статьи.');
-      return;
-    }
-
-    setCreateValidationError(null);
-    createMutation.mutate({ title, body: newBody }, {
+  const handleCreateSubmit = createForm.handleSubmit(({ title, body }) => {
+    createMutation.mutate({ title: title.trim(), body }, {
       onSuccess: () => {
-        setNewTitle('');
-        setNewBody('');
+        createForm.reset();
         setIsCreateOpen(false);
       },
     });
-  }
+  });
 
   function startEditing(article: Article) {
     setConfirmDeleteId(null);
-    setEditingArticle({ id: article.id, body: article.body });
+    editForm.reset({ body: article.body });
+    setEditingArticleId(article.id);
   }
 
-  function saveArticleBody(article: Article) {
-    if (!editingArticle || editingArticle.id !== article.id) return;
-
-    updateMutation.mutate(editingArticle, {
-      onSuccess: () => setEditingArticle(null),
+  const saveArticleBody = editForm.handleSubmit(({ body }) => {
+    if (editingArticleId === null) return;
+    updateMutation.mutate({ id: editingArticleId, body }, {
+      onSuccess: () => setEditingArticleId(null),
     });
-  }
+  });
 
   function deleteArticle(article: Article) {
     deleteMutation.mutate(article.id, {
@@ -89,21 +79,24 @@ export function ArticlesPage() {
           </div>
         </div>
         <nav className="app-navigation" aria-label="Основная навигация">
-          <Link activeProps={{ 'aria-current': 'page' }} className="app-nav-link" to="/">Диалоги</Link>
-          <Link activeProps={{ 'aria-current': 'page' }} className="app-nav-link" to="/articles">Статьи</Link>
+          <NavLink className="app-nav-link" end to="/">Диалоги</NavLink>
+          <NavLink className="app-nav-link" to="/articles">Статьи</NavLink>
         </nav>
-        <Button
-          aria-controls="article-create-form"
-          aria-expanded={isCreateOpen}
-          className="article-primary-action"
-          onClick={() => setIsCreateOpen((isOpen) => !isOpen)}
-          type="button"
-          variant="default"
-          size="sm"
-        >
-          <span aria-hidden="true">＋</span>
-          Новая статья
-        </Button>
+        <div className="app-header-actions">
+          <Button
+            aria-controls="article-create-form"
+            aria-expanded={isCreateOpen}
+            className="article-primary-action"
+            onClick={() => setIsCreateOpen((isOpen) => !isOpen)}
+            type="button"
+            variant="default"
+            size="sm"
+          >
+            <span aria-hidden="true">＋</span>
+            Новая статья
+          </Button>
+          <AuthStatus />
+        </div>
       </header>
 
       <section className="articles-intro" aria-labelledby="articles-title">
@@ -119,7 +112,7 @@ export function ArticlesPage() {
       </section>
 
       {isCreateOpen && (
-        <form className="article-create-card" id="article-create-form" onSubmit={handleCreateSubmit}>
+        <form className="article-create-card" id="article-create-form" onSubmit={(event) => void handleCreateSubmit(event)}>
           <div className="article-create-heading">
             <div>
               <p className="eyebrow">Новая запись</p>
@@ -136,26 +129,26 @@ export function ArticlesPage() {
               <Input
                 autoFocus
                 className="article-field"
-                onChange={(event) => setNewTitle(event.target.value)}
+                {...createForm.register('title', {
+                  validate: (value) => value.trim().length > 0 || 'Укажите заголовок статьи.',
+                })}
                 placeholder="Например, Как начать диалог"
                 required
-                value={newTitle}
               />
             </label>
             <label className="article-field-group">
               <span>Текст статьи</span>
               <textarea
                 className="article-field article-create-body"
-                onChange={(event) => setNewBody(event.target.value)}
+                {...createForm.register('body')}
                 placeholder="Добавьте содержание статьи…"
-                value={newBody}
               />
             </label>
           </div>
 
-          {(createValidationError || createMutation.isError) && (
+          {(createForm.formState.errors.title || createMutation.isError) && (
             <p className="article-form-error" role="alert">
-              {createValidationError ?? createMutation.error?.message ?? 'Не удалось создать статью.'}
+              {createForm.formState.errors.title?.message ?? createMutation.error?.message ?? 'Не удалось создать статью.'}
             </p>
           )}
           <div className="article-form-actions">
@@ -212,7 +205,7 @@ export function ArticlesPage() {
                 </thead>
                 <tbody>
                   {articles.map((article) => {
-                    const isEditing = editingArticle?.id === article.id;
+                    const isEditing = editingArticleId === article.id;
                     const isDeleteConfirming = confirmDeleteId === article.id;
 
                     return (
@@ -223,15 +216,16 @@ export function ArticlesPage() {
                             <strong>{article.title}</strong>
                           </div>
                           {isEditing ? (
-                            <label className="article-field-group article-edit-group">
-                              <span className="sr-only">Текст статьи «{article.title}»</span>
-                              <textarea
-                                autoFocus
-                                className="article-field article-edit-body"
-                                onChange={(event) => setEditingArticle({ id: article.id, body: event.target.value })}
-                                value={editingArticle.body}
-                              />
-                            </label>
+                            <form id="article-edit-form" onSubmit={(event) => void saveArticleBody(event)}>
+                              <label className="article-field-group article-edit-group">
+                                <span className="sr-only">Текст статьи «{article.title}»</span>
+                                <textarea
+                                  autoFocus
+                                  className="article-field article-edit-body"
+                                  {...editForm.register('body')}
+                                />
+                              </label>
+                            </form>
                           ) : (
                             <p className="article-body-preview">{article.body || 'Текст пока пустой'}</p>
                           )}
@@ -243,9 +237,9 @@ export function ArticlesPage() {
                           {isEditing ? (
                             <div className="article-row-actions">
                               <Button
-                                disabled={updateMutation.isPending || editingArticle.body === article.body}
-                                onClick={() => saveArticleBody(article)}
-                                type="button"
+                                disabled={updateMutation.isPending || !editForm.formState.isDirty}
+                                form="article-edit-form"
+                                type="submit"
                                 variant="default"
                                 size="sm"
                               >
@@ -253,7 +247,7 @@ export function ArticlesPage() {
                               </Button>
                               <Button
                                 disabled={updateMutation.isPending}
-                                onClick={() => setEditingArticle(null)}
+                                onClick={() => setEditingArticleId(null)}
                                 type="button"
                                 variant="outline"
                                 size="sm"
@@ -285,7 +279,7 @@ export function ArticlesPage() {
                               <Button
                                 className="article-delete-button"
                                 onClick={() => {
-                                  setEditingArticle(null);
+                                  setEditingArticleId(null);
                                   setConfirmDeleteId(article.id);
                                 }}
                                 type="button"
