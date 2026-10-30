@@ -7,10 +7,12 @@ skinparam wrapWidth 220
 actor "Пользователь" as user
 package "CustomChat" {
   rectangle "Консольный процесс\nNode.js · chat.mjs" as consoleApp
+  database "Файлы сессий\nmemory/session-*.json" as memory
 }
 rectangle "OpenAI Platform\nResponses API" as openai
 
 user --> consoleApp : вводит строку и читает ответ
-consoleApp --> openai : HTTPS через официальный SDK\nодин текстовый промпт
+consoleApp --> memory : сохраняет каждое сообщение
+consoleApp --> openai : HTTPS через официальный SDK\nвся переписка сессии
 openai --> consoleApp : полный текстовый ответ
 @enduml

@@ -22,15 +22,24 @@ function getStatusCode(error) {
   return Number(error.status);
 }
 
-/** Принимает один промпт и возвращает полный текстовый ответ модели. */
-export async function getTextResponse(prompt) {
-  if (typeof prompt !== "string") {
-    throw new TypeError("Промпт должен быть строкой.");
+/** Принимает переписку и возвращает полный текстовый ответ модели. */
+export async function getTextResponse(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    throw new TypeError("Переписка должна быть непустым массивом сообщений.");
   }
 
-  if (!prompt.trim()) {
-    throw new Error("Промпт не должен быть пустым.");
-  }
+  const conversation = messages.map((message) => {
+    if (
+      !message ||
+      !["user", "assistant"].includes(message.role) ||
+      typeof message.content !== "string" ||
+      !message.content.trim()
+    ) {
+      throw new TypeError("Каждое сообщение должно содержать роль и непустой текст.");
+    }
+
+    return { role: message.role, content: message.content };
+  });
 
   const openai = getClient();
   let response;
@@ -38,7 +47,7 @@ export async function getTextResponse(prompt) {
   try {
     response = await openai.responses.create({
       model: process.env.OPENAI_MODEL?.trim() || DEFAULT_MODEL,
-      input: prompt,
+      input: conversation,
     });
   } catch (error) {
     const statusCode = getStatusCode(error);

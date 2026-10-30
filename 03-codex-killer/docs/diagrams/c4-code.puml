@@ -6,11 +6,34 @@ skinparam wrapWidth 220
 
 class ChatModule <<module>> {
   +main(): Promise<void>
+  -appendToMemory(session, message): Promise<void>
   -printAssistantReply(text: string): void
 }
 
+class MemoryRepository <<module>> {
+  +createMemorySession(): Promise<MemorySession>
+}
+
+class MemorySession <<object>> {
+  +id: string
+  +fileName: string
+  +messages: ChatMessage[]
+  +save(): Promise<void>
+}
+
+class ChatMessage <<data>> {
+  +role: user | assistant
+  +content: string
+}
+
+class SessionJsonFile <<file>> {
+  +messages: ChatMessage[]
+  +createdAt: string
+  +updatedAt: string
+}
+
 class OpenAIAdapter <<module>> {
-  +getTextResponse(prompt: string): Promise<string>
+  +getTextResponse(messages: ChatMessage[]): Promise<string>
   -getClient(): OpenAIClient
 }
 
@@ -19,32 +42,30 @@ class OpenAIClient <<SDK>> {
 }
 
 class ResponsesClient <<SDK>> {
-  +create(model: string, input: string): Promise<Response>
+  +create(model: string, input: ChatMessage[]): Promise<Response>
 }
 
 class Response {
   +output_text: string
 }
 
-note right of OpenAIAdapter
-  Читает OPENAI_API_KEY и OPENAI_MODEL
-  из process.env. npm start загружает
-  значения из .env.
-  Модель по умолчанию: gpt-6-luna.
-end note
-
-ChatModule --> OpenAIAdapter : await getTextResponse(line)
+ChatModule --> MemoryRepository : createMemorySession() при запуске и /clear
+MemoryRepository --> MemorySession : создаёт сессию с пустой перепиской
+ChatModule --> MemorySession : добавляет user и assistant сообщения
+MemorySession --> SessionJsonFile : save() после каждого сообщения
+MemorySession --> ChatMessage : хранит текущий диалог
+ChatModule --> OpenAIAdapter : await getTextResponse(session.messages)
 OpenAIAdapter --> OpenAIClient : getClient()
 OpenAIClient --> ResponsesClient : responses
-OpenAIAdapter --> ResponsesClient : create({model, input: prompt})
+OpenAIAdapter --> ResponsesClient : create({model, input: messages})
 ResponsesClient --> Response : возвращает готовый ответ
 Response --> OpenAIAdapter : output_text
 OpenAIAdapter --> ChatModule : Promise<string>
 
-note right of ChatModule
-  Каждая введённая строка передаётся
-  отдельным prompt. Ответ печатается
-  целиком после завершения запроса.
-  История и потоковая выдача не используются.
+note right of MemorySession
+  Каждый запуск приложения создаёт
+  отдельный memory/session-*.json.
+  Старые сессии остаются на диске,
+  но в новый диалог не загружаются.
 end note
 @enduml

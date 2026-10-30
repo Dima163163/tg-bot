@@ -5,11 +5,11 @@ skinparam shadowing false
 skinparam wrapWidth 220
 
 actor "Пользователь" as user
-rectangle "CustomChat\nКонсольный чат" as app
+rectangle "CustomChat\nКонсольный чат с памятью сессий" as app
 rectangle "OpenAI Platform\nLLM Responses API" as openai
 
-user --> app : вводит промпт одной строкой
-app --> openai : отправляет промпт
+user --> app : ведёт диалог
+app --> openai : отправляет переписку текущей сессии
 openai --> app : возвращает полный текст ответа
 app --> user : показывает ответ в консоли
 @enduml

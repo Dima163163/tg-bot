@@ -6,18 +6,24 @@ skinparam shadowing false
 skinparam wrapWidth 220
 
 actor "Пользователь" as user
-package "CustomChat · Node.js process" {
-  component "CLI и обработчик строк\nchat.mjs" as cli
-  component "OpenAI Adapter\nopenai-adapter.mjs\ngetTextResponse(prompt)" as adapter
-  component "Официальный\nOpenAI JavaScript SDK" as sdk
+package "CustomChat" {
+  package "Node.js process" {
+    component "CLI и обработчик строк\nchat.mjs" as cli
+    component "Memory Repository\nmemory-repository.mjs\ncreateMemorySession()" as memoryRepo
+    component "OpenAI Adapter\nopenai-adapter.mjs\ngetTextResponse(messages)" as adapter
+    component "Официальный\nOpenAI JavaScript SDK" as sdk
 
-  cli --> adapter : передаёт одну строку
-  adapter --> sdk : создаёт обычный\nнепотоковый запрос
+    cli --> memoryRepo : создаёт сессию\nи сохраняет сообщения
+    cli --> adapter : передаёт всю переписку сессии
+    adapter --> sdk : создаёт обычный\nнепотоковый запрос
+  }
+  database "Файлы сессий\nmemory/session-*.json" as memoryFiles
 }
 rectangle "OpenAI Platform\nResponses API и модель" as api
 
 user --> cli : вводит промпт
-sdk --> api : запрос с input = prompt
+memoryRepo --> memoryFiles : атомарно сохраняет JSON
+sdk --> api : запрос с input = messages[]
 api --> sdk : завершённый ответ
 sdk --> adapter : response.output_text
 adapter --> cli : Promise<string>

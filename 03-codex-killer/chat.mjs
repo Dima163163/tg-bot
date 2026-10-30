@@ -1,6 +1,7 @@
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { getTextResponse } from "./openai-adapter.mjs";
+import { createMemorySession } from "./memory-repository.mjs";
 
 const useColors = Boolean(stdout.isTTY) && !("NO_COLOR" in process.env);
 const color = (code, value) => (useColors ? `\u001b[${code}m${value}\u001b[0m` : value);
@@ -13,11 +14,12 @@ const styles = {
   hint: (value) => color("2", value),
 };
 
-function printWelcome() {
+function printWelcome(sessionFileName) {
   stdout.write("\n");
   stdout.write(`  ${styles.title("CustomChat")}\n`);
-  stdout.write("  Консольный чат с ответами языковой модели.\n");
-  stdout.write(`  ${styles.hint("/help — команды   /clear — очистить экран   /exit — выйти")}\n\n`);
+  stdout.write("  Диалог сохраняется в отдельный файл для каждой сессии.\n");
+  stdout.write(`  Память: memory/${sessionFileName}\n`);
+  stdout.write(`  ${styles.hint("/help — команды   /clear — новая сессия   /exit — выйти")}\n\n`);
 }
 
 function wrapLine(line, maxLength) {
@@ -72,14 +74,34 @@ function printError(message) {
 function printHelp() {
   stdout.write("\n  Команды:\n");
   stdout.write("  /help   показать эту подсказку\n");
-  stdout.write("  /clear  очистить экран и начать с чистого листа\n");
+  stdout.write("  /clear  начать новую сессию в отдельном файле\n");
   stdout.write("  /exit   завершить чат\n\n");
+}
+
+async function appendToMemory(session, message) {
+  session.messages.push(message);
+
+  try {
+    await session.save();
+  } catch (error) {
+    session.messages.pop();
+    throw error;
+  }
 }
 
 async function main() {
   const terminal = createInterface({ input: stdin, output: stdout });
+  let session;
 
-  printWelcome();
+  try {
+    session = await createMemorySession();
+  } catch (error) {
+    terminal.close();
+    printError(error instanceof Error ? error.message : "Не удалось создать файл переписки.");
+    return;
+  }
+
+  printWelcome(session.fileName);
 
   try {
     while (true) {
@@ -103,10 +125,15 @@ async function main() {
       }
 
       if (command === "/clear") {
-        if (stdout.isTTY) {
-          stdout.write("\u001b[2J\u001b[H");
+        try {
+          session = await createMemorySession();
+          if (stdout.isTTY) {
+            stdout.write("\u001b[2J\u001b[H");
+          }
+          printWelcome(session.fileName);
+        } catch (error) {
+          printError(error instanceof Error ? error.message : "Не удалось создать новую сессию.");
         }
-        printWelcome();
         continue;
       }
 
@@ -115,11 +142,29 @@ async function main() {
       }
 
       try {
-        const answer = await getTextResponse(message);
-        printAssistantReply(`CustomChat: ${answer}`);
+        await appendToMemory(session, { role: "user", content: message });
+      } catch (error) {
+        printError(error instanceof Error ? error.message : "Не удалось сохранить сообщение.");
+        continue;
+      }
+
+      let answer;
+      try {
+        answer = await getTextResponse(session.messages);
       } catch (error) {
         printError(error instanceof Error ? error.message : "Произошла неизвестная ошибка.");
+        continue;
       }
+
+      try {
+        await appendToMemory(session, { role: "assistant", content: answer });
+      } catch (error) {
+        printAssistantReply(`CustomChat: ${answer}`);
+        printError(error instanceof Error ? error.message : "Не удалось сохранить ответ.");
+        continue;
+      }
+
+      printAssistantReply(`CustomChat: ${answer}`);
     }
   } finally {
     terminal.close();
