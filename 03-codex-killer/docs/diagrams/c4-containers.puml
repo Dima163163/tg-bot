@@ -1,18 +1,54 @@
 @startuml
-title C4 — Уровень 2: Контейнеры
+title C4 · 2 — Контейнеры\nПриложение, локальные файлы и внешний API
 left to right direction
+skinparam backgroundColor #F8FAFC
 skinparam shadowing false
-skinparam wrapWidth 220
-
-actor "Пользователь" as user
-package "CustomChat" {
-  rectangle "Консольный процесс\nNode.js · chat.mjs" as consoleApp
-  database "Файлы сессий\nmemory/session-*.json" as memory
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam defaultFontColor #24364B
+skinparam titleFontSize 20
+skinparam titleFontStyle bold
+skinparam titleFontColor #102A43
+skinparam ArrowColor #64748B
+skinparam ArrowThickness 2
+skinparam ArrowFontColor #334155
+skinparam ArrowFontSize 10
+skinparam packageStyle rectangle
+skinparam roundcorner 12
+skinparam nodesep 85
+skinparam ranksep 65
+skinparam package {
+  BorderColor #B8C6D6
+  BackgroundColor #FFFFFF
+  FontColor #24364B
 }
-rectangle "OpenAI Platform\nResponses API" as openai
+skinparam folder {
+  BorderColor #C08A27
+  BackgroundColor #FFF2CC
+  FontColor #654F1D
+}
+skinparam actorBackgroundColor #EAF2FF
+skinparam actorBorderColor #5B82B1
+skinparam componentBackgroundColor #DDF3E5
+skinparam componentBorderColor #4C8C67
+skinparam cloudBackgroundColor #EEE8FF
+skinparam cloudBorderColor #7B68AE
 
-user --> consoleApp : вводит строку и читает ответ
-consoleApp --> memory : сохраняет каждое сообщение
-consoleApp --> openai : HTTPS через официальный SDK\nвся переписка сессии
-openai --> consoleApp : полный текстовый ответ
+actor "Пользователь" as user #EAF2FF
+package "CUSTOMCHAT · ЛОКАЛЬНО" #FFFFFF {
+  component "Консольный чат\nNode.js 22+ · chat.mjs" as app #DDF3E5
+  folder "Память сессий\nmemory/session-*.json\nновая при запуске и /clear" as memoryFiles #FFF2CC
+  folder "Рабочие файлы\nworkspace/**\ncreate_file / read_file" as workspaceFiles #FFF2CC
+}
+cloud "OpenAI Platform\nResponses API\nПо умолчанию: gpt-6-luna" as openai #EEE8FF
+
+user <--> app : ввод / ответ
+app <--> openai : история / ответ модели
+app -down-> memoryFiles : сохраняет
+app -down-> workspaceFiles : читает / создаёт
+
+legend bottom
+  Зелёный — приложение; янтарный — локальные файлы;
+  фиолетовый — внешний API.
+endlegend
 @enduml

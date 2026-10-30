@@ -1,71 +1,89 @@
 @startuml
-title C4 — Уровень 4: Код
+title C4 · 4 — Код\nОсновные модули и путь данных
+top to bottom direction
 skinparam classAttributeIconSize 0
+skinparam backgroundColor #F8FAFC
 skinparam shadowing false
-skinparam wrapWidth 220
-
-class ChatModule <<module>> {
-  +main(): Promise<void>
-  -appendToMemory(session, message): Promise<void>
-  -printAssistantReply(text: string): void
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam defaultFontColor #24364B
+skinparam titleFontSize 20
+skinparam titleFontStyle bold
+skinparam titleFontColor #102A43
+skinparam ArrowColor #64748B
+skinparam ArrowThickness 2
+skinparam ArrowFontColor #334155
+skinparam ArrowFontSize 10
+skinparam packageStyle rectangle
+skinparam nodesep 100
+skinparam ranksep 90
+skinparam classBackgroundColor #FFFFFF
+skinparam classBorderColor #94A3B8
+skinparam package {
+  BorderColor #B8C6D6
+  FontColor #24364B
 }
 
-class MemoryRepository <<module>> {
-  +createMemorySession(): Promise<MemorySession>
+package "1 · Чат" #EAF7EF {
+  class ChatModule {
+    +main()
+    +appendToMemory(session, message)
+    +printAssistantReply(text)
+  }
 }
 
-class MemorySession <<object>> {
-  +id: string
-  +fileName: string
-  +messages: ChatMessage[]
-  +save(): Promise<void>
+package "2 · Память" #FFF7DF {
+  class MemoryRepository {
+    +createMemorySession()
+  }
+  class MemorySession {
+    +id: string
+    +fileName: string
+    +messages: ChatMessage[]
+    +save()
+  }
+  class ChatMessage {
+    +role: string
+    +content: string
+  }
+  class SessionFile {
+    +path: string
+    +format: JSON
+  }
 }
 
-class ChatMessage <<data>> {
-  +role: user | assistant
-  +content: string
+package "3 · OpenAI" #EFEDFF {
+  class OpenAIAdapter {
+    +getTextResponse(messages): Promise<string>
+  }
+  class ResponsesClient {
+    +create(model, input, tools)
+  }
 }
 
-class SessionJsonFile <<file>> {
-  +messages: ChatMessage[]
-  +createdAt: string
-  +updatedAt: string
+package "4 · Файловые инструменты" #FFF0E3 {
+  class FileTools {
+    +executeFileTool(name, args)
+    +create_file(path, content)
+    +read_file(path)
+  }
+  class WorkspaceFile {
+    +path: string
+    +format: text
+  }
 }
 
-class OpenAIAdapter <<module>> {
-  +getTextResponse(messages: ChatMessage[]): Promise<string>
-  -getClient(): OpenAIClient
-}
+ChatModule --> MemoryRepository : создаёт сессию
+MemoryRepository --> MemorySession : новая сессия
+MemorySession --> ChatMessage : история
+MemorySession --> SessionFile : запись каждого сообщения
+ChatModule <--> OpenAIAdapter : история / ответ
+OpenAIAdapter <--> ResponsesClient : запрос / ответ
+OpenAIAdapter <--> FileTools : вызов / результат
+FileTools --> WorkspaceFile : чтение / создание
 
-class OpenAIClient <<SDK>> {
-  +responses: ResponsesClient
-}
-
-class ResponsesClient <<SDK>> {
-  +create(model: string, input: ChatMessage[]): Promise<Response>
-}
-
-class Response {
-  +output_text: string
-}
-
-ChatModule --> MemoryRepository : createMemorySession() при запуске и /clear
-MemoryRepository --> MemorySession : создаёт сессию с пустой перепиской
-ChatModule --> MemorySession : добавляет user и assistant сообщения
-MemorySession --> SessionJsonFile : save() после каждого сообщения
-MemorySession --> ChatMessage : хранит текущий диалог
-ChatModule --> OpenAIAdapter : await getTextResponse(session.messages)
-OpenAIAdapter --> OpenAIClient : getClient()
-OpenAIClient --> ResponsesClient : responses
-OpenAIAdapter --> ResponsesClient : create({model, input: messages})
-ResponsesClient --> Response : возвращает готовый ответ
-Response --> OpenAIAdapter : output_text
-OpenAIAdapter --> ChatModule : Promise<string>
-
-note right of MemorySession
-  Каждый запуск приложения создаёт
-  отдельный memory/session-*.json.
-  Старые сессии остаются на диске,
-  но в новый диалог не загружаются.
-end note
+legend bottom
+  Зелёный — чат; жёлтый — память; фиолетовый — OpenAI;
+  оранжевый — файловые инструменты.
+endlegend
 @enduml

@@ -19,6 +19,7 @@ function printWelcome(sessionFileName) {
   stdout.write(`  ${styles.title("CustomChat")}\n`);
   stdout.write("  Диалог сохраняется в отдельный файл для каждой сессии.\n");
   stdout.write(`  Память: memory/${sessionFileName}\n`);
+  stdout.write("  Файловые инструменты работают только внутри workspace/.\n");
   stdout.write(`  ${styles.hint("/help — команды   /clear — новая сессия   /exit — выйти")}\n\n`);
 }
 
@@ -75,7 +76,8 @@ function printHelp() {
   stdout.write("\n  Команды:\n");
   stdout.write("  /help   показать эту подсказку\n");
   stdout.write("  /clear  начать новую сессию в отдельном файле\n");
-  stdout.write("  /exit   завершить чат\n\n");
+  stdout.write("  /exit   завершить чат\n");
+  stdout.write("  Создание и чтение файлов доступны только в workspace/.\n\n");
 }
 
 async function appendToMemory(session, message) {

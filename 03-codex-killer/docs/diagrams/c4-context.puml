@@ -1,15 +1,36 @@
 @startuml
-title C4 — Уровень 1: Контекст системы
-left to right direction
+title C4 · 1 — Контекст системы\nКто общается с CustomChat и где генерируется ответ
+top to bottom direction
+skinparam backgroundColor #F8FAFC
 skinparam shadowing false
-skinparam wrapWidth 220
+skinparam defaultFontName Arial
+skinparam defaultFontSize 14
+skinparam defaultFontColor #24364B
+skinparam titleFontSize 20
+skinparam titleFontStyle bold
+skinparam titleFontColor #102A43
+skinparam ArrowColor #64748B
+skinparam ArrowThickness 2
+skinparam ArrowFontColor #334155
+skinparam ArrowFontSize 11
+skinparam nodesep 75
+skinparam ranksep 65
+skinparam actorBackgroundColor #EAF2FF
+skinparam actorBorderColor #5B82B1
+skinparam rectangleBackgroundColor #DDF3E5
+skinparam rectangleBorderColor #4C8C67
+skinparam cloudBackgroundColor #EEE8FF
+skinparam cloudBorderColor #7B68AE
 
-actor "Пользователь" as user
-rectangle "CustomChat\nКонсольный чат с памятью сессий" as app
-rectangle "OpenAI Platform\nLLM Responses API" as openai
+actor "Пользователь" as user #EAF2FF
+rectangle "CustomChat\nКонсольное приложение\nПамять сессий и файловые инструменты" as app #DDF3E5
+cloud "OpenAI Platform\nResponses API\nМодель по умолчанию: gpt-6-luna" as openai #EEE8FF
 
-user --> app : ведёт диалог
-app --> openai : отправляет переписку текущей сессии
-openai --> app : возвращает полный текст ответа
-app --> user : показывает ответ в консоли
+user <--> app : сообщение / ответ
+app <--> openai : история / ответ модели
+
+legend bottom
+  Синий — пользователь; зелёный — CustomChat;
+  фиолетовый — OpenAI Platform.
+endlegend
 @enduml
