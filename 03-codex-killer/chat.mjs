@@ -1,5 +1,6 @@
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
+import { getTextResponse } from "./openai-adapter.mjs";
 
 const useColors = Boolean(stdout.isTTY) && !("NO_COLOR" in process.env);
 const color = (code, value) => (useColors ? `\u001b[${code}m${value}\u001b[0m` : value);
@@ -8,13 +9,14 @@ const styles = {
   title: (value) => color("1;36", value),
   user: (value) => color("1;34", value),
   assistant: (value) => color("1;32", value),
+  error: (value) => color("1;31", value),
   hint: (value) => color("2", value),
 };
 
 function printWelcome() {
   stdout.write("\n");
-  stdout.write(`  ${styles.title("CastomChat")}\n`);
-  stdout.write("  Простой чат в консоли. Напиши сообщение — бот повторит его.\n");
+  stdout.write(`  ${styles.title("CustomChat")}\n`);
+  stdout.write("  Консольный чат с ответами языковой модели.\n");
   stdout.write(`  ${styles.hint("/help — команды   /clear — очистить экран   /exit — выйти")}\n\n`);
 }
 
@@ -63,6 +65,10 @@ function printAssistantReply(message) {
   }
 }
 
+function printError(message) {
+  stdout.write(`\n  ${styles.error("✕")} ${message}\n`);
+}
+
 function printHelp() {
   stdout.write("\n  Команды:\n");
   stdout.write("  /help   показать эту подсказку\n");
@@ -108,7 +114,12 @@ async function main() {
         continue;
       }
 
-      printAssistantReply(`CastomChat: ${message}`);
+      try {
+        const answer = await getTextResponse(message);
+        printAssistantReply(`CustomChat: ${answer}`);
+      } catch (error) {
+        printError(error instanceof Error ? error.message : "Произошла неизвестная ошибка.");
+      }
     }
   } finally {
     terminal.close();

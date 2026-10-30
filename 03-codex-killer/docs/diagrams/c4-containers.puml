@@ -1,0 +1,16 @@
+@startuml
+title C4 — Уровень 2: Контейнеры
+left to right direction
+skinparam shadowing false
+skinparam wrapWidth 220
+
+actor "Пользователь" as user
+package "CustomChat" {
+  rectangle "Консольный процесс\nNode.js · chat.mjs" as consoleApp
+}
+rectangle "OpenAI Platform\nResponses API" as openai
+
+user --> consoleApp : вводит строку и читает ответ
+consoleApp --> openai : HTTPS через официальный SDK\nодин текстовый промпт
+openai --> consoleApp : полный текстовый ответ
+@enduml

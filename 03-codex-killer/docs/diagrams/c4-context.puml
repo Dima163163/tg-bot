@@ -1,0 +1,15 @@
+@startuml
+title C4 — Уровень 1: Контекст системы
+left to right direction
+skinparam shadowing false
+skinparam wrapWidth 220
+
+actor "Пользователь" as user
+rectangle "CustomChat\nКонсольный чат" as app
+rectangle "OpenAI Platform\nLLM Responses API" as openai
+
+user --> app : вводит промпт одной строкой
+app --> openai : отправляет промпт
+openai --> app : возвращает полный текст ответа
+app --> user : показывает ответ в консоли
+@enduml

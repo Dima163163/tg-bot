@@ -1,0 +1,50 @@
+@startuml
+title C4 — Уровень 4: Код
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam wrapWidth 220
+
+class ChatModule <<module>> {
+  +main(): Promise<void>
+  -printAssistantReply(text: string): void
+}
+
+class OpenAIAdapter <<module>> {
+  +getTextResponse(prompt: string): Promise<string>
+  -getClient(): OpenAIClient
+}
+
+class OpenAIClient <<SDK>> {
+  +responses: ResponsesClient
+}
+
+class ResponsesClient <<SDK>> {
+  +create(model: string, input: string): Promise<Response>
+}
+
+class Response {
+  +output_text: string
+}
+
+note right of OpenAIAdapter
+  Читает OPENAI_API_KEY и OPENAI_MODEL
+  из process.env. npm start загружает
+  значения из .env.
+  Модель по умолчанию: gpt-6-luna.
+end note
+
+ChatModule --> OpenAIAdapter : await getTextResponse(line)
+OpenAIAdapter --> OpenAIClient : getClient()
+OpenAIClient --> ResponsesClient : responses
+OpenAIAdapter --> ResponsesClient : create({model, input: prompt})
+ResponsesClient --> Response : возвращает готовый ответ
+Response --> OpenAIAdapter : output_text
+OpenAIAdapter --> ChatModule : Promise<string>
+
+note right of ChatModule
+  Каждая введённая строка передаётся
+  отдельным prompt. Ответ печатается
+  целиком после завершения запроса.
+  История и потоковая выдача не используются.
+end note
+@enduml
