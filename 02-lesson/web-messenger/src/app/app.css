@@ -74,7 +74,11 @@ h1 { font-size: 24px; letter-spacing: -.05em; line-height: 1; }
 .login-error { color: #a64f45; font-size: 11px; line-height: 1.5; }
 .login-submit { min-height: 42px; border-radius: 9px; background: #d7f166; color: #253018; font-size: 12px; font-weight: 800; }
 .login-submit:hover { background: #c9e653; }
+.login-card .login-inline-link { color: #4c6420; display: inline-block; font-size: 12px; font-weight: 700; margin-top: 18px; }
 .login-card .login-back-link { color: #4c6420; display: inline-block; font-size: 12px; font-weight: 700; margin-top: 20px; }
+.login-card .login-text-button { border: 0; background: transparent; color: #4c6420; display: inline-block; font-size: 12px; font-weight: 700; margin-top: 18px; padding: 0; text-align: left; text-decoration: underline; }
+.login-feedback { max-width: 380px; font-size: 12px; line-height: 1.6; margin-top: 18px; }
+.login-feedback-success { color: #4c6420; }
 
 @media (max-width: 780px) {
   .app-header { flex-wrap: wrap; gap: 12px; }

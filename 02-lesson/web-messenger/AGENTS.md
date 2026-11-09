@@ -13,7 +13,7 @@
 | `src/app/router.tsx`, `src/app/app.css` | Дерево маршрутов, глобальные стили и подключение страниц. |
 | `src/pages/messenger/MessengerPage.tsx` | Сборка экрана диалогов, запросы, состояния загрузки и взаимодействия. |
 | `src/pages/articles/` | Страница `/articles`: список статей, курсорная подгрузка и действия создания, редактирования и удаления. |
-| `src/pages/login/` | Маршрут `/login` с формой входа через `/api/auth/login`. |
+| `src/pages/login/`, `src/pages/password-reset/` | Вход через `/api/auth/login` и сброс пароля через `/api/auth/password-*`. |
 | `src/features/auth/` | Общий блок шапки с текущим пользователем, выходом и запросом пользователя для защищённых маршрутов. |
 | `src/pages/messenger/model/store.ts` | Состояние интерфейса мессенджера в Zustand. |
 | `src/pages/messenger/model/client.ts`, `message.ts` и `use-realtime-messages.ts` | Типы, запросы и Realtime-подписка страницы; текущий проект пока держит их в `model/`. |

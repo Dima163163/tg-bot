@@ -3,6 +3,7 @@ import { useCurrentUser } from '../features/auth';
 import { ArticlesPage } from '../pages/articles';
 import { LoginPage } from '../pages/login';
 import { MessengerPage } from '../pages/messenger/MessengerPage';
+import { PasswordResetPage } from '../pages/password-reset';
 
 export function AppRoutes() {
   return (
@@ -12,6 +13,7 @@ export function AppRoutes() {
         <Route path="/articles" element={<ArticlesPage />} />
       </Route>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/password-reset" element={<PasswordResetPage />} />
     </Routes>
   );
 }

@@ -33,6 +33,32 @@ else Успешный вход
   SPA --> User: Перейти на /
 end
 
+== Сброс пароля ==
+User -> SPA: Указать email на /password-reset
+SPA -> BFF: POST /api/auth/password-reset
+BFF -> AuthJS: resetPasswordForEmail(email, redirectTo)
+AuthJS -> Auth: POST /auth/v1/recover
+Auth --> AuthJS: Принять запрос или ошибка доставки
+AuthJS --> BFF: Результат без раскрытия наличия аккаунта
+BFF --> SPA: 202; общий ответ
+Auth --> User: Письмо со ссылкой восстановления
+User -> SPA: GET /password-reset#...&type=recovery
+SPA -> SPA: Удалить токены из hash URL
+SPA -> BFF: POST /api/auth/password-recovery/session\naccess_token + refresh_token
+BFF -> AuthJS: setSession(access_token, refresh_token)
+AuthJS -> Auth: Проверить и обменять токены
+Auth --> AuthJS: Сессия
+BFF -> BFF: Зашифровать recovery-only cookie, TTL 15 минут
+SPA --> User: Показать форму нового пароля
+User -> SPA: Отправить новый пароль
+SPA -> BFF: POST /api/auth/password-recovery/update\nCookie: recovery-only
+BFF -> AuthJS: updateUser({ password })
+AuthJS -> Auth: Изменить пароль пользователя
+Auth --> AuthJS: Пользователь обновлён
+BFF -> BFF: Удалить recovery cookie
+BFF --> SPA: 200; смена завершена
+SPA --> User: Предложить войти с новым паролем
+
 == Восстановление и обновление сессии ==
 User -> SPA: Открыть / или /articles
 SPA -> BFF: GET /api/auth/session\nCookie: зашифрованная сессия

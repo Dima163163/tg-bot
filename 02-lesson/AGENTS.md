@@ -41,10 +41,10 @@
 | `web-messenger/src/main.tsx`, `web-messenger/src/app/` | Вход React, глобальные стили, провайдер Query Client и маршрутизатор. |
 | `web-messenger/src/pages/messenger/` | Экран диалогов, CSS, загрузка клиентов и сообщений, состояния UI. В `model/store.ts` — Zustand; в `model/client.ts` и `model/message.ts` — типы и функции запросов. |
 | `web-messenger/src/pages/articles/` | Экран `/articles`: таблица, курсорная подгрузка, CRUD-модель и React Query hooks. |
-| `web-messenger/src/pages/login/` | Форма входа по email и паролю на маршруте `/login`. |
+| `web-messenger/src/pages/login/`, `web-messenger/src/pages/password-reset/` | Вход на `/login` и восстановление пароля на `/password-reset`. |
 | `web-messenger/src/features/auth/` | Общий блок шапки: проверка пользователя Supabase Auth, ссылка на вход и кнопка выхода. |
 | `web-messenger/src/shared/api/` | Браузерный транспорт к локальному `/api` (`edge-functions.ts`, `auth-session.ts`), конфигурация Realtime (`supabase-config.ts`, `realtime-client.ts`). Полный `@supabase/supabase-js` в браузере запрещён. |
-| `server/auth-api.mjs` | Локальная серверная прослойка Vite: вход, обновление сессии, зашифрованная HttpOnly cookie, выход и вызовы Edge Functions с JWT. |
+| `server/auth-api.mjs` | Локальная серверная прослойка Vite: вход, восстановление пароля с recovery-only cookie, обновление сессии, выход и вызовы Edge Functions с JWT. |
 | `web-messenger/src/shared/ui/`, `web-messenger/src/shared/lib/` | Общие UI-примитивы и утилиты панели. |
 | `supabase/config.toml` | Локальная конфигурация Supabase и `verify_jwt` отдельных Edge Functions. |
 | `supabase/functions/webhook/index.ts` | Сборка обработчика Telegram, серверные секреты, вызовы RPC для записи сообщений. |

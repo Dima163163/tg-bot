@@ -1,8 +1,11 @@
 # Индекс документации
 
-Проверено 2026-10-19 по исходникам проекта `02-lesson`. Описания текущей
+Проверено 2026-11-09 по исходникам проекта `02-lesson`. Описания текущей
 реализации сверены с кодом; наличие SQL-файла само по себе не подтверждает,
-что миграция применена в удалённом Supabase-проекте.
+что миграция применена в удалённом Supabase-проекте. На дату проверки webhook
+сохраняет входящее сообщение и отправляет фиксированный ответ, а `articles`
+поддерживает CRUD; генерация embeddings, векторный поиск и RAG-ответы ещё не
+реализованы.
 
 ## Руководства проекта
 
@@ -25,8 +28,8 @@
 | Файл | Назначение и связь с кодом |
 | --- | --- |
 | [`telegram-webhook/telegram-webhook-sequence.puml`](telegram-webhook/telegram-webhook-sequence.puml) | Фактический поток webhook: проверка запроса, запись входящего сообщения, отправка фиксированного ответа и запись ответа бота. Сверена с `../supabase/functions/webhook/` и SQL RPC. PlantUML-исходник просмотрен вручную. |
-| [`auth/auth-refresh-sequence.puml`](auth/auth-refresh-sequence.puml) | Общая схема авторизации с access/refresh-токенами и cookie. В проекте не найдены соответствующие auth-маршруты или middleware; пометьте её как пример/предложение либо уточните, что она описывает. |
-| [`auth/supabase-spa-auth-sequence.puml`](auth/supabase-spa-auth-sequence.puml) | Локальный поток сессии: `/api/auth/*`, HttpOnly cookie, access token для Realtime, авторизация в Edge Functions и выход. Сверена с `../server/auth-api.mjs` и `../web-messenger/src/`; публикация в удалённом проекте не проверена. |
+| [`auth/auth-refresh-sequence.puml`](auth/auth-refresh-sequence.puml) | Концептуальный пример собственной auth-службы с хранением хэша refresh token в своей БД. Не описывает реализацию проекта: `/api/auth/*` использует Supabase Auth через `@supabase/auth-js` и зашифрованную HttpOnly cookie; фактический поток показан в `auth/supabase-spa-auth-sequence.puml` и реализован в `../server/auth-api.mjs`. |
+| [`auth/supabase-spa-auth-sequence.puml`](auth/supabase-spa-auth-sequence.puml) | Локальные вход, восстановление пароля через recovery-only cookie, обновление сессии, Realtime, Edge Functions и выход. Сверена с `../server/auth-api.mjs` и `../web-messenger/src/`; публикация в удалённом проекте не проверена. |
 
 ## Ограничения проверки
 

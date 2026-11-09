@@ -74,6 +74,7 @@ export function LoginPage() {
             {isSubmitting ? 'Входим…' : 'Войти'}
           </Button>
         </form>
+        <Link className="login-inline-link" to="/password-reset">Забыли пароль?</Link>
         <Link className="login-back-link" to="/">Вернуться к диалогам</Link>
       </section>
     </main>
