@@ -7,22 +7,25 @@
 ## Запуск
 
 1. Установи зависимости: `npm install`.
-2. Открой `.env` и вставь ключ после `OPENAI_API_KEY=`. Если `.env` ещё нет, скопируй `.env.example` в `.env`.
-3. Запусти чат: `npm start`.
+2. Если `.env` ещё нет, скопируй `.env.example` в `.env`.
+3. Создай API-ключ Groq в [консоли Groq](https://console.groq.com/keys) и вставь его после `GROQ_API_KEY=` в `.env`.
+4. Запусти чат: `npm start`.
 
 Файл уже загружается при запуске. Его формат:
 
 ```dotenv
-OPENAI_API_KEY=твой-ключ
-# Необязательно: можно выбрать другую модель
-OPENAI_MODEL=gpt-6-luna
+GROQ_API_KEY=твой-ключ-Groq
+# Необязательно: можно выбрать другую доступную модель Groq
+GROQ_MODEL=openai/gpt-oss-20b
 ```
 
-По умолчанию используется модель `gpt-6-luna`. Её можно переопределить через `OPENAI_MODEL`.
+По умолчанию используется `openai/gpt-oss-20b`. Модель можно переопределить через `GROQ_MODEL`. Бесплатный план Groq ограничен квотами; при их превышении API временно отклоняет запросы.
 
 ## Интерфейс адаптера
 
-`getTextResponse(messages)` из `openai-adapter.mjs` принимает список сообщений `{ role, content }` и возвращает `Promise<string>` с полным ответом. Подробности запроса к OpenAI API остаются внутри адаптера.
+`getTextResponse(messages)` из `groq-adapter.mjs` принимает список сообщений `{ role, content }` и возвращает `Promise<string>` с полным ответом. Адаптер использует OpenAI JS SDK с совместимым Responses API Groq и сохраняет локальное выполнение файловых инструментов.
+
+Responses API Groq находится в beta; формат и доступность функций могут измениться.
 
 ## Память диалогов
 

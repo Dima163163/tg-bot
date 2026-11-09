@@ -24,13 +24,13 @@ skinparam cloudBorderColor #7B68AE
 
 actor "Пользователь" as user #EAF2FF
 rectangle "CustomChat\nКонсольное приложение\nПамять сессий и файловые инструменты" as app #DDF3E5
-cloud "OpenAI Platform\nResponses API\nМодель по умолчанию: gpt-6-luna" as openai #EEE8FF
+cloud "GroqCloud\nResponses API\nМодель по умолчанию: openai/gpt-oss-20b" as groq #EEE8FF
 
 user <--> app : сообщение / ответ
-app <--> openai : история / ответ модели
+app <--> groq : история / ответ модели
 
 legend bottom
   Синий — пользователь; зелёный — CustomChat;
-  фиолетовый — OpenAI Platform.
+  фиолетовый — GroqCloud.
 endlegend
 @enduml

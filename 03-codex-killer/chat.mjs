@@ -1,6 +1,6 @@
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
-import { getTextResponse } from "./openai-adapter.mjs";
+import { getTextResponse } from "./groq-adapter.mjs";
 import { createMemorySession } from "./memory-repository.mjs";
 
 const useColors = Boolean(stdout.isTTY) && !("NO_COLOR" in process.env);

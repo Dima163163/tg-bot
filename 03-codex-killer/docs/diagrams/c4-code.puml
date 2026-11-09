@@ -52,8 +52,8 @@ package "2 · Память" #FFF7DF {
   }
 }
 
-package "3 · OpenAI" #EFEDFF {
-  class OpenAIAdapter {
+package "3 · Groq" #EFEDFF {
+  class GroqAdapter {
     +getTextResponse(messages): Promise<string>
   }
   class ResponsesClient {
@@ -77,13 +77,13 @@ ChatModule --> MemoryRepository : создаёт сессию
 MemoryRepository --> MemorySession : новая сессия
 MemorySession --> ChatMessage : история
 MemorySession --> SessionFile : запись каждого сообщения
-ChatModule <--> OpenAIAdapter : история / ответ
-OpenAIAdapter <--> ResponsesClient : запрос / ответ
-OpenAIAdapter <--> FileTools : вызов / результат
+ChatModule <--> GroqAdapter : история / ответ
+GroqAdapter <--> ResponsesClient : запрос / ответ
+GroqAdapter <--> FileTools : вызов / результат
 FileTools --> WorkspaceFile : чтение / создание
 
 legend bottom
-  Зелёный — чат; жёлтый — память; фиолетовый — OpenAI;
+  Зелёный — чат; жёлтый — память; фиолетовый — Groq;
   оранжевый — файловые инструменты.
 endlegend
 @enduml

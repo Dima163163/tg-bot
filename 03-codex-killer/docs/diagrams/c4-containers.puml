@@ -40,10 +40,10 @@ package "CUSTOMCHAT · ЛОКАЛЬНО" #FFFFFF {
   folder "Память сессий\nmemory/session-*.json\nновая при запуске и /clear" as memoryFiles #FFF2CC
   folder "Рабочие файлы\nworkspace/**\ncreate_file / read_file" as workspaceFiles #FFF2CC
 }
-cloud "OpenAI Platform\nResponses API\nПо умолчанию: gpt-6-luna" as openai #EEE8FF
+cloud "GroqCloud\nResponses API\nПо умолчанию: openai/gpt-oss-20b" as groq #EEE8FF
 
 user <--> app : ввод / ответ
-app <--> openai : история / ответ модели
+app <--> groq : история / ответ модели
 app -down-> memoryFiles : сохраняет
 app -down-> workspaceFiles : читает / создаёт
 

@@ -40,14 +40,14 @@ package "CUSTOMCHAT · Node.js" #FFFFFF {
     component "Память сессий\nmemory-repository.mjs\nuser до API\nassistant после ответа" as memoryRepo #FFF2CC
   }
   package "Модель и инструменты" #F7F5FF {
-    component "OpenAI адаптер\nopenai-adapter.mjs\nдо 8 раундов tools" as adapter #E7E9FF
+    component "Groq адаптер\ngroq-adapter.mjs\nдо 8 раундов tools" as adapter #E7E9FF
     component "OpenAI JS SDK\nпакет openai" as sdk #F1F5F9
     component "Файловые tools\nfile-tools.mjs" as fileTools #FFE9D6
   }
 }
 folder "Файлы сессий\nmemory/*.json" as memoryFiles #FFF2CC
 folder "Рабочие файлы\nworkspace/**" as workspaceFiles #FFF2CC
-cloud "OpenAI Platform\nResponses API" as api #EEE8FF
+cloud "GroqCloud\nResponses API" as api #EEE8FF
 
 user <--> cli : ввод / ответ
 cli --> memoryRepo : запись
@@ -60,6 +60,6 @@ fileTools --> workspaceFiles : чтение / создание
 
 legend bottom
   Зелёный — диалог; жёлтый — память; оранжевый — tools;
-  фиолетовый — OpenAI; серый — SDK.
+  фиолетовый — Groq; серый — OpenAI SDK.
 endlegend
 @enduml

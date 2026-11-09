@@ -2,18 +2,19 @@ import OpenAI from "openai";
 import { toResponseInputItems } from "openai/lib/responses/ResponseInputItems";
 import { executeFileTool, fileTools } from "./file-tools.mjs";
 
-const DEFAULT_MODEL = "gpt-6-luna";
+const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
+const DEFAULT_MODEL = "openai/gpt-oss-20b";
 const MAX_TOOL_ROUNDS = 8;
 let client;
 
 function getClient() {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  const apiKey = process.env.GROQ_API_KEY?.trim();
 
   if (!apiKey) {
-    throw new Error("Задай OPENAI_API_KEY в переменных окружения, чтобы отправлять запросы.");
+    throw new Error("Задай GROQ_API_KEY в файле .env, чтобы отправлять запросы.");
   }
 
-  client ??= new OpenAI({ apiKey });
+  client ??= new OpenAI({ apiKey, baseURL: GROQ_BASE_URL });
   return client;
 }
 
@@ -29,7 +30,7 @@ function toUserFacingApiError(error) {
   const statusCode = getStatusCode(error);
 
   if (statusCode === 401) {
-    return new Error("OpenAI API отклонил ключ. Проверь OPENAI_API_KEY.");
+    return new Error("Groq отклонил ключ. Проверь GROQ_API_KEY в файле .env.");
   }
 
   if (statusCode === 403) {
@@ -37,23 +38,22 @@ function toUserFacingApiError(error) {
   }
 
   if (statusCode === 404) {
-    return new Error("Модель не найдена. Проверь OPENAI_MODEL.");
+    return new Error("Модель не найдена. Проверь GROQ_MODEL в файле .env.");
   }
 
   if (statusCode === 429) {
-    return new Error("OpenAI API ограничил запрос. Проверь лимиты и биллинг.");
+    return new Error("Groq ограничил запрос. Проверь лимиты или повтори попытку позже.");
   }
 
-  return new Error("Не удалось получить ответ от OpenAI API. Проверь подключение и настройки.");
+  return new Error("Не удалось получить ответ от Groq API. Проверь подключение и настройки.");
 }
 
-async function createModelResponse(openai, model, input) {
+async function createModelResponse(providerClient, model, input) {
   try {
-    return await openai.responses.create({
+    return await providerClient.responses.create({
       model,
       input,
       tools: fileTools,
-      store: false,
       instructions:
         "Only use create_file or read_file when the user asks to create or read a file. Paths are relative to workspace/. Do not claim success unless the tool result confirms it.",
     });
@@ -119,13 +119,13 @@ export async function getTextResponse(messages) {
     return { role: message.role, content: message.content };
   });
 
-  const openai = getClient();
-  const model = process.env.OPENAI_MODEL?.trim() || DEFAULT_MODEL;
+  const groq = getClient();
+  const model = process.env.GROQ_MODEL?.trim() || DEFAULT_MODEL;
   const input = conversation;
   let toolRounds = 0;
 
   while (true) {
-    const response = await createModelResponse(openai, model, input);
+    const response = await createModelResponse(groq, model, input);
 
     if (response.status !== "completed") {
       throw new Error("Ответ модели завершился до получения готового текста.");
