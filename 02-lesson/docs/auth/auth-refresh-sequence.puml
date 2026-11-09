@@ -1,0 +1,70 @@
+@startuml
+title Классическая авторизация с access и refresh токенами
+autonumber
+
+actor "Пользователь" as User
+participant "Браузер / SPA" as Client
+participant "API авторизации" as Auth
+database "БД пользователей и сессий" as DB
+participant "Защищённый API" as API
+
+== Вход ==
+User -> Client: Вводит логин и пароль
+Client -> Auth: POST /auth/login\n{ login, password }
+Auth -> DB: Найти пользователя по логину
+DB --> Auth: Пользователь и хэш пароля
+
+alt Учётные данные верны
+    Auth -> Auth: Проверить пароль\nСформировать короткоживущий access token\nСформировать случайный refresh token
+    Auth -> DB: Сохранить хэш refresh token,\nсрок действия и сессию
+    DB --> Auth: Сессия создана
+    Auth --> Client: 200 { accessToken }\nSet-Cookie: refreshToken; HttpOnly; Secure; SameSite
+    Client -> Client: Хранить access token в памяти
+else Учётные данные неверны
+    Auth --> Client: 401 Unauthorized
+    Client --> User: Показать ошибку входа
+end
+
+== Запрос к защищённому ресурсу ==
+Client -> API: GET /resource\nAuthorization: Bearer accessToken
+API -> API: Проверить подпись и срок действия access token
+
+alt Access token действителен
+    API --> Client: 200 Данные ресурса
+else Access token истёк или недействителен
+    API --> Client: 401 Unauthorized
+    Client -> Auth: POST /auth/refresh\nCookie: refreshToken
+    Auth -> DB: Найти сессию по хэшу refresh token;\nпроверить срок действия и отзыв
+    DB --> Auth: Результат проверки сессии
+
+    alt Refresh token действителен
+        Auth -> Auth: Выпустить новый access token\nи новый refresh token
+        Auth -> DB: Атомарно заменить хэш refresh token\n(ротация токена)
+        DB --> Auth: Сессия обновлена
+        Auth --> Client: 200 { accessToken }\nSet-Cookie: новый refreshToken; HttpOnly; Secure; SameSite
+        Client -> API: Повторить GET /resource\nс новым access token
+        API -> API: Проверить access token
+        API --> Client: 200 Данные ресурса
+    else Refresh token истёк, отозван или не найден
+        Auth -> DB: Отозвать сессию
+        Auth --> Client: 401 Unauthorized\nSet-Cookie: очистить refreshToken
+        Client --> User: Запросить повторный вход
+    end
+end
+
+== Выход ==
+opt Пользователь завершает сессию
+    Client -> Auth: POST /auth/logout\nCookie: refreshToken
+    Auth -> DB: Отозвать сессию и refresh token
+    DB --> Auth: Сессия отозвана
+    Auth --> Client: 204 No Content\nSet-Cookie: очистить refreshToken
+    Client -> Client: Удалить access token из памяти
+end
+
+note over Client, DB
+  Refresh token передаётся только в защищённой cookie
+  и хранится на сервере в виде хэша. Access token
+  короткоживущий; после его истечения клиент обновляет
+  пару токенов и повторяет исходный запрос.
+end note
+@enduml

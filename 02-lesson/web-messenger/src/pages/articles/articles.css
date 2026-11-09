@@ -93,6 +93,7 @@
 }
 
 @media (max-width: 420px) {
+  .app-header-actions .article-primary-action { margin-left: 0; }
   .articles-intro { flex-direction: column; gap: 12px; }
   .articles-total { display: flex; align-items: baseline; gap: 7px; }
   .articles-total-value { font-size: 17px; }

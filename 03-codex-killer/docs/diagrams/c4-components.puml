@@ -1,0 +1,65 @@
+@startuml
+title C4 · 3 — Компоненты\nКороткий маршрут сообщения и файлового вызова
+top to bottom direction
+skinparam componentStyle rectangle
+skinparam backgroundColor #F8FAFC
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam defaultFontColor #24364B
+skinparam titleFontSize 20
+skinparam titleFontStyle bold
+skinparam titleFontColor #102A43
+skinparam ArrowColor #64748B
+skinparam ArrowThickness 2
+skinparam ArrowFontColor #334155
+skinparam ArrowFontSize 10
+skinparam packageStyle rectangle
+skinparam roundcorner 12
+skinparam nodesep 90
+skinparam ranksep 80
+skinparam package {
+  BorderColor #B8C6D6
+  BackgroundColor #FFFFFF
+  FontColor #24364B
+}
+skinparam folder {
+  BorderColor #C08A27
+  BackgroundColor #FFF2CC
+  FontColor #654F1D
+}
+skinparam actorBackgroundColor #EAF2FF
+skinparam actorBorderColor #5B82B1
+skinparam cloudBackgroundColor #EEE8FF
+skinparam cloudBorderColor #7B68AE
+
+actor "Пользователь" as user #EAF2FF
+package "CUSTOMCHAT · Node.js" #FFFFFF {
+  package "Диалог" #F0F8F2 {
+    component "Цикл консоли\nchat.mjs" as cli #DDF3E5
+    component "Память сессий\nmemory-repository.mjs\nuser до API\nassistant после ответа" as memoryRepo #FFF2CC
+  }
+  package "Модель и инструменты" #F7F5FF {
+    component "Groq адаптер\ngroq-adapter.mjs\nдо 8 раундов tools" as adapter #E7E9FF
+    component "OpenAI JS SDK\nпакет openai" as sdk #F1F5F9
+    component "Файловые tools\nfile-tools.mjs" as fileTools #FFE9D6
+  }
+}
+folder "Файлы сессий\nmemory/*.json" as memoryFiles #FFF2CC
+folder "Рабочие файлы\nworkspace/**" as workspaceFiles #FFF2CC
+cloud "GroqCloud\nResponses API" as api #EEE8FF
+
+user <--> cli : ввод / ответ
+cli --> memoryRepo : запись
+memoryRepo --> memoryFiles : JSON
+cli <--> adapter : история / текст
+adapter <--> sdk : запрос / ответ
+sdk <--> api : HTTPS
+adapter <--> fileTools : вызов / результат
+fileTools --> workspaceFiles : чтение / создание
+
+legend bottom
+  Зелёный — диалог; жёлтый — память; оранжевый — tools;
+  фиолетовый — Groq; серый — OpenAI SDK.
+endlegend
+@enduml

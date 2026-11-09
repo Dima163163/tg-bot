@@ -1,0 +1,108 @@
+@startuml
+title SPA и Supabase Auth: сессия в HttpOnly cookie
+autonumber
+hide footbox
+
+' Локальная реализация: server/auth-api.mjs, web-messenger/src,
+' supabase/functions/{clients,messages,articles}, миграция panel_operators.
+
+actor "Оператор" as User
+participant "React SPA" as SPA
+participant "Локальный /api\n(Vite middleware)" as BFF
+participant "@supabase/auth-js\nна сервере" as AuthJS
+participant "Supabase Auth" as Auth
+participant "Edge Functions\nclients/messages/articles" as Edge
+participant "Supabase Realtime" as Realtime
+database "PostgreSQL" as DB
+
+== Вход ==
+User -> SPA: Отправить форму email + пароль
+SPA -> BFF: POST /api/auth/login
+BFF -> AuthJS: signInWithPassword(email, password)
+AuthJS -> Auth: POST /auth/v1/token?grant_type=password
+Auth --> AuthJS: session или ошибка
+alt Ошибка входа
+  AuthJS --> BFF: error
+  BFF --> SPA: 401
+  SPA --> User: Показать ошибку
+else Успешный вход
+  AuthJS --> BFF: access token, refresh token, user
+  BFF -> BFF: Зашифровать токены AES-GCM
+  BFF --> SPA: Set-Cookie: HttpOnly, SameSite=Strict, Path=/api\nJSON: user, accessToken, expiresAt
+  SPA -> SPA: Хранить access token в памяти React Query
+  SPA --> User: Перейти на /
+end
+
+== Восстановление и обновление сессии ==
+User -> SPA: Открыть / или /articles
+SPA -> BFF: GET /api/auth/session\nCookie: зашифрованная сессия
+BFF -> BFF: Расшифровать cookie
+alt Cookie отсутствует или недействительна
+  BFF --> SPA: 401; удалить cookie
+  SPA --> User: Перейти на /login
+else Сессия есть
+  opt Access token скоро истечёт
+    BFF -> AuthJS: refreshSession(refresh_token)
+    AuthJS -> Auth: Обновить refresh token
+    Auth --> AuthJS: Новая session или ошибка
+    alt Ошибка обновления
+      AuthJS --> BFF: error
+      break Сессия недействительна
+        BFF --> SPA: 401; удалить cookie
+        SPA --> User: Перейти на /login
+      end
+    else Успешное обновление
+      AuthJS --> BFF: Новые токены
+      BFF -> BFF: Установить новую зашифрованную cookie
+    end
+  end
+  BFF -> AuthJS: getUser(access_token)
+  AuthJS -> Auth: Проверить пользователя
+  Auth --> AuthJS: user
+  BFF --> SPA: user, accessToken, expiresAt\nбез refresh token
+end
+
+== Чтение данных и изменение статей ==
+SPA -> BFF: /api/functions/clients, messages или articles\nCookie: зашифрованная сессия
+BFF -> BFF: Расшифровать cookie; при необходимости обновить JWT
+BFF -> Edge: /functions/v1/...\nAuthorization: Bearer access_token
+Edge -> Edge: verify_jwt = true; auth: user
+Edge -> DB: Проверить userClaims.id в panel_operators
+DB --> Edge: Назначение или отсутствие записи
+alt Не оператор
+  Edge --> BFF: 403
+  BFF --> SPA: 403
+else Оператор
+  Edge -> DB: Прочитать или изменить данные
+  DB --> Edge: Результат
+  Edge --> BFF: JSON / 204
+  BFF --> SPA: JSON / 204
+end
+
+== Новые сообщения ==
+SPA -> Realtime: setAuth(accessToken); подписка на INSERT messages
+Realtime -> DB: SELECT/RLS: authenticated + panel_operators
+DB --> Realtime: Разрешённые события
+Realtime --> SPA: INSERT выбранного клиента
+SPA -> SPA: Обновить историю в React Query
+loop Пока открыта SPA, раз в 60 секунд
+  SPA -> BFF: GET /api/auth/session
+  BFF --> SPA: Текущий или обновлённый accessToken
+  SPA -> Realtime: setAuth(accessToken), если токен изменился
+end
+
+== Выход ==
+User -> SPA: Нажать Sign out
+SPA -> BFF: POST /api/auth/logout
+BFF -> Auth: POST /auth/v1/logout?scope=local
+Auth --> BFF: Успех
+BFF --> SPA: 204; Set-Cookie: удалить сессию
+SPA -> SPA: Очистить React Query и снять Realtime-подписку
+SPA --> User: Перейти на /login
+
+note over SPA, BFF
+  Refresh token передаётся только в зашифрованной HttpOnly cookie.
+  JavaScript SPA получает access token для Realtime, но не refresh token.
+  Cookie Secure включается при HTTPS через AUTH_COOKIE_SECURE=true.
+end note
+@enduml

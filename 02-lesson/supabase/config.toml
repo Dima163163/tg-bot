@@ -443,18 +443,18 @@ entrypoint = "./functions/hello-it-incubator/index.ts"
 
 [functions.messages]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 import_map = "./functions/messages/deno.json"
 entrypoint = "./functions/messages/index.ts"
 
 [functions.clients]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 import_map = "./functions/clients/deno.json"
 entrypoint = "./functions/clients/index.ts"
 
 [functions.articles]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 import_map = "./functions/articles/deno.json"
 entrypoint = "./functions/articles/index.ts"

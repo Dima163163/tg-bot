@@ -1,0 +1,36 @@
+@startuml
+title C4 · 1 — Контекст системы\nКто общается с CustomChat и где генерируется ответ
+top to bottom direction
+skinparam backgroundColor #F8FAFC
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 14
+skinparam defaultFontColor #24364B
+skinparam titleFontSize 20
+skinparam titleFontStyle bold
+skinparam titleFontColor #102A43
+skinparam ArrowColor #64748B
+skinparam ArrowThickness 2
+skinparam ArrowFontColor #334155
+skinparam ArrowFontSize 11
+skinparam nodesep 75
+skinparam ranksep 65
+skinparam actorBackgroundColor #EAF2FF
+skinparam actorBorderColor #5B82B1
+skinparam rectangleBackgroundColor #DDF3E5
+skinparam rectangleBorderColor #4C8C67
+skinparam cloudBackgroundColor #EEE8FF
+skinparam cloudBorderColor #7B68AE
+
+actor "Пользователь" as user #EAF2FF
+rectangle "CustomChat\nКонсольное приложение\nПамять сессий и файловые инструменты" as app #DDF3E5
+cloud "GroqCloud\nResponses API\nМодель по умолчанию: openai/gpt-oss-20b" as groq #EEE8FF
+
+user <--> app : сообщение / ответ
+app <--> groq : история / ответ модели
+
+legend bottom
+  Синий — пользователь; зелёный — CustomChat;
+  фиолетовый — GroqCloud.
+endlegend
+@enduml

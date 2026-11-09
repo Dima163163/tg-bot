@@ -1,0 +1,89 @@
+@startuml
+title C4 · 4 — Код\nОсновные модули и путь данных
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam backgroundColor #F8FAFC
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam defaultFontColor #24364B
+skinparam titleFontSize 20
+skinparam titleFontStyle bold
+skinparam titleFontColor #102A43
+skinparam ArrowColor #64748B
+skinparam ArrowThickness 2
+skinparam ArrowFontColor #334155
+skinparam ArrowFontSize 10
+skinparam packageStyle rectangle
+skinparam nodesep 100
+skinparam ranksep 90
+skinparam classBackgroundColor #FFFFFF
+skinparam classBorderColor #94A3B8
+skinparam package {
+  BorderColor #B8C6D6
+  FontColor #24364B
+}
+
+package "1 · Чат" #EAF7EF {
+  class ChatModule {
+    +main()
+    +appendToMemory(session, message)
+    +printAssistantReply(text)
+  }
+}
+
+package "2 · Память" #FFF7DF {
+  class MemoryRepository {
+    +createMemorySession()
+  }
+  class MemorySession {
+    +id: string
+    +fileName: string
+    +messages: ChatMessage[]
+    +save()
+  }
+  class ChatMessage {
+    +role: string
+    +content: string
+  }
+  class SessionFile {
+    +path: string
+    +format: JSON
+  }
+}
+
+package "3 · Groq" #EFEDFF {
+  class GroqAdapter {
+    +getTextResponse(messages): Promise<string>
+  }
+  class ResponsesClient {
+    +create(model, input, tools)
+  }
+}
+
+package "4 · Файловые инструменты" #FFF0E3 {
+  class FileTools {
+    +executeFileTool(name, args)
+    +create_file(path, content)
+    +read_file(path)
+  }
+  class WorkspaceFile {
+    +path: string
+    +format: text
+  }
+}
+
+ChatModule --> MemoryRepository : создаёт сессию
+MemoryRepository --> MemorySession : новая сессия
+MemorySession --> ChatMessage : история
+MemorySession --> SessionFile : запись каждого сообщения
+ChatModule <--> GroqAdapter : история / ответ
+GroqAdapter <--> ResponsesClient : запрос / ответ
+GroqAdapter <--> FileTools : вызов / результат
+FileTools --> WorkspaceFile : чтение / создание
+
+legend bottom
+  Зелёный — чат; жёлтый — память; фиолетовый — Groq;
+  оранжевый — файловые инструменты.
+endlegend
+@enduml

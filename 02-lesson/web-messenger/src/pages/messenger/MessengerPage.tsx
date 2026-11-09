@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
+import { NavLink } from 'react-router';
+import { AuthStatus } from '../../features/auth';
 import type { Client } from './model/client';
 import { getClients } from './model/client';
 import type { Message } from './model/message';
@@ -254,13 +255,16 @@ export function MessengerPage() {
           </div>
         </div>
         <nav className="app-navigation" aria-label="Основная навигация">
-          <Link activeProps={{ 'aria-current': 'page' }} className="app-nav-link" to="/">Диалоги</Link>
-          <Link activeProps={{ 'aria-current': 'page' }} className="app-nav-link" to="/articles">Статьи</Link>
+          <NavLink className="app-nav-link" end to="/">Диалоги</NavLink>
+          <NavLink className="app-nav-link" to="/articles">Статьи</NavLink>
         </nav>
-        <Button className="refresh-button" onClick={refreshData} type="button" variant="outline" size="sm" aria-label="Обновить диалоги">
-          <span aria-hidden="true">↻</span>
-          Обновить
-        </Button>
+        <div className="app-header-actions">
+          <Button className="refresh-button" onClick={refreshData} type="button" variant="outline" size="sm" aria-label="Обновить диалоги">
+            <span aria-hidden="true">↻</span>
+            Обновить
+          </Button>
+          <AuthStatus />
+        </div>
       </header>
 
       <section className="messenger-grid" aria-label="Сообщения клиентов">

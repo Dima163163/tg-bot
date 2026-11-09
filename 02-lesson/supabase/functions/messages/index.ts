@@ -33,7 +33,7 @@ function decodeCursor(value: string | null): MessageCursor | null {
 }
 
 export default {
-  fetch: withSupabase({ auth: 'none' }, async (req, ctx) => {
+  fetch: withSupabase({ auth: 'user' }, async (req, ctx) => {
     if (req.method !== 'GET') {
       return Response.json({ message: 'Method not allowed' }, {
         status: 405, headers: { Allow: 'GET' },
@@ -41,6 +41,14 @@ export default {
     }
 
     try {
+      const userId = ctx.userClaims?.id;
+      if (!userId) return Response.json({ message: 'Unauthorized' }, { status: 401 });
+
+      const { data: operator, error: operatorError } = await ctx.supabaseAdmin
+        .from('panel_operators').select('id').eq('user_id', userId).maybeSingle();
+      if (operatorError) throw operatorError;
+      if (!operator) return Response.json({ message: 'Operator access required' }, { status: 403 });
+
       const url = new URL(req.url);
       const clientId = Number(url.searchParams.get('client_id'));
       const requestedPageSize = Number(url.searchParams.get('limit') ?? DEFAULT_PAGE_SIZE);
