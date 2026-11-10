@@ -16,12 +16,16 @@ export async function callEdgeFunction<T>(functionName: string, init?: RequestIn
     if (response.status === 403) throw new Error('Нет доступа: аккаунт не назначен оператором.');
     let detail = '';
     try {
-      const body = (await response.json()) as { message?: string };
-      detail = body.message ? `: ${body.message}` : '';
+      const body: unknown = await response.json();
+      if (body && typeof body === 'object' && 'message' in body && typeof body.message === 'string') {
+        detail = body.message ? `: ${body.message}` : '';
+      }
     } catch {
       // Keep the HTTP status as the useful error when the function returned no JSON.
     }
-    throw new Error(`Не удалось загрузить данные (${response.status})${detail}`);
+    const operation = init?.method && !['GET', 'HEAD'].includes(init.method.toUpperCase())
+      ? 'выполнить операцию' : 'загрузить данные';
+    throw new Error(`Не удалось ${operation} (${response.status})${detail}`);
   }
 
   if (response.status === 204) return undefined as T;

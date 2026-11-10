@@ -1,86 +1,98 @@
 @startuml
-title Обработка входящего сообщения через Telegram webhook
+title Telegram webhook: ответ по базе статей
 autonumber
+actor Telegram
+participant "Edge + HTTP handler\n(presentation)" as HTTP
+participant "authorizeWebhookUseCase" as Auth
+participant "handleTelegramUpdateUseCase" as Update
+participant "telegramMessageRepository" as Repo
+database PostgreSQL as DB
+participant "answerKnowledgeQuestionUseCase" as RAG
+participant "Groq adapter" as Groq
+participant "Supabase AI\ngte-small" as AI
+participant "knowledgeSearchRepository" as Search
+participant "Telegram Bot API adapter" as Bot
 
-actor "Telegram" as Telegram
-participant "Supabase Edge Function\nwebhook" as Edge
-participant "Webhook HTTP handler" as Handler
-participant "Обработчик Telegram update" as Update
-participant "Supabase Admin client" as Supabase
-database "PostgreSQL" as DB
-participant "Telegram Bot API" as BotAPI
-
-== Проверка запроса ==
-Telegram -> Edge: POST /functions/v1/webhook/telegram\nX-Telegram-Bot-Api-Secret-Token
-Edge -> Handler: Передать HTTP Request
-Handler -> Handler: Проверить путь, метод,\nнастройки и секретный заголовок
-
-alt Путь, метод, настройки или секрет некорректны
-    Handler --> Telegram: 404 / 405 / 500 / 401
-else Запрос авторизован
-    Handler -> Handler: Разобрать JSON update
-
-    alt Некорректный JSON
-        Handler --> Telegram: 400 Bad Request
-    else JSON разобран
-        Handler -> Update: handleTelegramUpdate(update)
-        Update -> Update: Проверить структуру update\nи тип отправителя
-
-        alt Update неподдерживаемый или отправлен ботом
-            Update --> Handler: Успешное завершение без действий
-            Handler --> Telegram: 200 { "ok": true }
-        else Входящее сообщение пользователя
-            Update -> Supabase: RPC save_telegram_message(...)
-            Supabase -> DB: Транзакция: создать или обновить клиента;\nвставить сообщение с telegram_update_id
-
-            alt Ошибка сохранения входящего сообщения
-                DB --> Supabase: Ошибка
-                Supabase --> Update: Ошибка RPC
-                Update --> Handler: Исключение
-                Handler --> Telegram: 502 Bad Gateway
-            else Сохранено или update_id уже обработан
-                DB --> Supabase: Успешно; повторный update пропущен
-                Supabase --> Update: RPC завершён
-                Update -> BotAPI: POST sendMessage\n«Мы получили ваш запрос»
-
-                alt Telegram API вернул ошибку
-                    BotAPI --> Update: Неуспешный HTTP-ответ
-                    Update --> Handler: Исключение
-                    Handler --> Telegram: 502 Bad Gateway
-                else Ответ Telegram отправлен
-                    BotAPI --> Update: Успешный HTTP-ответ
-                    Update -> Supabase: RPC save_telegram_bot_reply(...)
-                    Supabase -> DB: Обновить last_message_at;\nсохранить ответ бота
-
-                    alt Ошибка сохранения ответа бота
-                        DB --> Supabase: Ошибка
-                        Supabase --> Update: Ошибка RPC
-                        Update --> Handler: Исключение
-                        Handler --> Telegram: 502 Bad Gateway
-                    else Ответ бота сохранён
-                        DB --> Supabase: Сохранено
-                        Supabase --> Update: RPC завершён
-                        Update --> Handler: Успешное завершение
-                        Handler --> Telegram: 200 { "ok": true }
-                    end
-                end
-            end
+Telegram -> HTTP: POST /functions/v1/webhook/telegram\nсекретный заголовок + update
+HTTP -> Auth: execute(secret)
+Auth --> HTTP: allowed / denied / unconfigured
+alt Неверный путь, метод, секрет, настройки или JSON
+  HTTP --> Telegram: 404 / 405 / 401 / 500 / 400
+else Запрос принят
+  HTTP -> Update: execute(update)
+  alt Неподдерживаемый update или отправитель-бот
+    Update --> HTTP: Без действий
+    HTTP --> Telegram: 200
+  else Сообщение пользователя
+    Update -> Repo: saveIncoming(message)
+    Repo -> DB: RPC save_telegram_message\nupsert клиента + insert сообщения
+    DB --> Repo: Сохранено либо входящий дубль пропущен
+    Update -> Repo: claim(update_id, attempt_uuid)
+    Repo -> DB: RPC claim_telegram_reply\nlease 2 минуты
+    DB --> Repo: sent / busy / claimed
+    alt sent
+      Repo --> Update: Уже отвечено
+      Update --> HTTP: Без повторной отправки
+      HTTP --> Telegram: 200
+    else busy
+      Repo --> Update: Попытка уже выполняется
+      Update --> HTTP: Ошибка для повтора
+      HTTP --> Telegram: 502
+    else claimed
+      Repo --> Update: Lease получен
+      alt /start, /help, нет текста или вопрос слишком длинный
+        Update -> Update: Подготовить подсказку без AI
+      else Вопрос до 2000 символов
+        Update -> RAG: execute(question)
+        RAG -> Groq: searchText(question)
+        Groq --> RAG: Краткий английский текст
+        RAG -> AI: run(text, mean_pool, normalize)
+        AI --> RAG: vector(384)
+        RAG -> Search: search(vector, model_tag)
+        Search -> DB: RPC search_articles\ntop-3, min_similarity=0.5
+        DB --> Search: id, title, body, similarity
+        Search --> RAG: Подходящие статьи
+        alt Есть кандидаты
+          RAG -> Groq: answer(question, original_sources)
+          Groq --> RAG: JSON answer + source_ids
+          RAG -> RAG: Проверить ID и формат\nДобавить названия источников
+        else Выдача пуста
+          RAG -> RAG: «Мы обрабатываем ваш запрос»
         end
+        note right of RAG
+          Пустой source_ids от Groq также даёт fallback.
+          Ошибка AI: сообщение о временной недоступности.
+        end note
+        RAG --> Update: Ответ либо fallback
+      end
+      Update -> Bot: sendMessage(chat_id, text)
+      alt Telegram не подтвердил отправку
+        Bot --> Update: Ошибка HTTP, сети или JSON ok
+        Update -> Repo: fail(update_id, attempt)
+        Repo -> DB: RPC fail_telegram_reply
+        Update --> HTTP: Ошибка
+        HTTP --> Telegram: 502
+      else Отправка подтверждена
+        Bot --> Update: Фактическая sentAt
+        Update -> Repo: complete(update_id, attempt, answer, sentAt)
+        Repo -> DB: RPC complete_telegram_reply\nтранзакция: исходящее сообщение + sent
+        DB --> Repo: Завершено
+        Repo --> Update: Сохранено
+        Update --> HTTP: Успешно
+        HTTP --> Telegram: 200
+      end
     end
+  end
 end
 
-note over Edge, Handler
-  Для функции выключена проверка JWT Supabase
-  (verify_jwt = false, auth: none). Запрос защищается
-  заголовком X-Telegram-Bot-Api-Secret-Token.
+note over HTTP, DB
+  Прямые импорты: presentation -> use case.execute -> repository/adapter.
+  DI нет. SQL и PostgREST находятся в репозиториях.
+  Ошибки БД приводят к HTTP 502; успешный ответ не подтверждается заранее.
 end note
-
-note over Update, DB
-  save_telegram_message сохраняет клиента и входящее
-  сообщение одной транзакцией. Уникальный telegram_update_id
-  не даёт записать входящее сообщение повторно. После RPC
-  обработчик всё равно отправляет ответ Telegram; повторная
-  доставка update может привести к повторному ответу бота.
-  Ответ бота записывается в БД только после успешной отправки.
+note over Update, Bot
+  Обработка синхронная; durable очередь пока не реализована.
+  Потеря подтверждения Telegram или сбой БД после отправки могут дать дубль
+  после истечения lease. Абсолютная exactly-once доставка не гарантируется.
 end note
 @enduml

@@ -1,0 +1,6 @@
+# Run Codex from 02-lesson. OAuth credentials are stored by Codex, not here.
+[mcp_servers.supabase_articles]
+url = "https://mcp.supabase.com/mcp?project_ref=cappgvetnxvjhnxufhkz&features=database,docs"
+enabled_tools = ["execute_sql", "list_tables", "list_migrations", "search_docs"]
+startup_timeout_sec = 60
+tool_timeout_sec = 60

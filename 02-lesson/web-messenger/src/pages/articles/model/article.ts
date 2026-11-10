@@ -27,9 +27,11 @@ export interface CreateArticleInput {
   body: string;
 }
 
-export interface UpdateArticleBodyInput {
+export interface UpdateArticleInput {
   id: number;
+  title: string;
   body: string;
+  expected_updated_at: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -100,7 +102,7 @@ export async function createArticle(input: CreateArticleInput): Promise<Article>
   return parseArticle(response);
 }
 
-export async function updateArticleBody(input: UpdateArticleBodyInput): Promise<Article> {
+export async function updateArticle(input: UpdateArticleInput): Promise<Article> {
   const response = await callEdgeFunction<unknown>('articles', {
     method: 'PATCH',
     body: JSON.stringify(input),

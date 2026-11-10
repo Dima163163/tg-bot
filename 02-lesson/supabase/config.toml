@@ -9,6 +9,10 @@ project_id = "02-lesson"
 # X-Telegram-Bot-Api-Secret-Token header in its own handler instead.
 verify_jwt = false
 
+[functions.knowledge-admin]
+# Owner-only automation endpoint; validates the separate RAG_ADMIN_TOKEN itself.
+verify_jwt = false
+
 [api]
 enabled = true
 # Port to use for the API URL.

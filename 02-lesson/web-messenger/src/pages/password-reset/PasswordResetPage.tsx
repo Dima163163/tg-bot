@@ -57,7 +57,7 @@ export function PasswordResetPage() {
       return;
     }
 
-    async function establishRecoverySession() {
+    async function establishRecoverySession(accessToken: string, refreshToken: string) {
       try {
         await acceptPasswordRecovery(accessToken, refreshToken);
         setMode('new-password');
@@ -69,7 +69,7 @@ export function PasswordResetPage() {
         setMode('invalid-link');
       }
     }
-    void establishRecoverySession();
+    void establishRecoverySession(accessToken, refreshToken);
   }, [recoveryResponse]);
 
   const submitEmail = emailForm.handleSubmit(async ({ email }) => {

@@ -4,7 +4,7 @@ import {
   createArticle,
   deleteArticle,
   getArticles,
-  updateArticleBody,
+  updateArticle,
 } from './article';
 
 export function useArticles() {
@@ -25,11 +25,11 @@ export function useCreateArticle() {
   });
 }
 
-export function useUpdateArticleBody() {
+export function useUpdateArticle() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: updateArticleBody,
+    mutationFn: updateArticle,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: articlesQueryKey }),
   });
 }
