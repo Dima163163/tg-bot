@@ -3,6 +3,7 @@ import { GoTrueClient } from '@supabase/auth-js';
 
 const COOKIE_NAME = 'web_messenger_session';
 const COOKIE_AGE_SECONDS = 30 * 24 * 60 * 60;
+const RECOVERY_COOKIE_AGE_SECONDS = 15 * 60;
 const REFRESH_BEFORE_SECONDS = 120;
 const MAX_BODY_BYTES = 1024 * 1024;
 const ALLOWED_FUNCTIONS = new Set(['clients', 'messages', 'articles']);
@@ -71,8 +72,8 @@ export function createAuthApi({ supabaseUrl, apiKey, cookieSecret, secureCookie 
     return `${COOKIE_NAME}=${value}; Path=/api; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${secureCookie ? '; Secure' : ''}`;
   }
 
-  function setSessionCookie(res, session) {
-    res.setHeader('Set-Cookie', cookieHeader(encryptSession(session)));
+  function setSessionCookie(res, session, maxAge = COOKIE_AGE_SECONDS) {
+    res.setHeader('Set-Cookie', cookieHeader(encryptSession(session), maxAge));
   }
 
   function clearSessionCookie(res) {
@@ -100,33 +101,41 @@ export function createAuthApi({ supabaseUrl, apiKey, cookieSecret, secureCookie 
     return Buffer.concat(chunks);
   }
 
+  function getSameOrigin(req) {
+    const origin = req.headers.origin;
+    if (!origin) return null;
+    try {
+      const parsedOrigin = new URL(origin);
+      if (!['http:', 'https:'].includes(parsedOrigin.protocol) || parsedOrigin.host !== req.headers.host) {
+        return null;
+      }
+      return parsedOrigin.origin;
+    } catch {
+      return null;
+    }
+  }
+
   function validMutation(req, res) {
     if (req.headers['x-wm-request'] !== '1') {
       sendJson(res, 403, { message: 'Request verification failed' });
       return false;
     }
-    const origin = req.headers.origin;
-    if (origin) {
-      try {
-        if (new URL(origin).host !== req.headers.host) {
-          sendJson(res, 403, { message: 'Origin is not allowed' });
-          return false;
-        }
-      } catch {
-        sendJson(res, 403, { message: 'Origin is not allowed' });
-        return false;
-      }
+    if (req.headers.origin && !getSameOrigin(req)) {
+      sendJson(res, 403, { message: 'Origin is not allowed' });
+      return false;
     }
     return true;
   }
 
-  async function loadSession(req, res) {
+  async function loadSession(req, res, { allowRecovery = false, requireRecovery = false } = {}) {
     const cookie = getCookie(req);
     const session = decryptSession(cookie);
     if (!session) {
       clearSessionCookie(res);
       return null;
     }
+    if (session.recoveryOnly === true && !allowRecovery) return null;
+    if (requireRecovery && session.recoveryOnly !== true) return null;
     if (session.expires_at > Date.now() / 1000 + REFRESH_BEFORE_SECONDS) return session;
 
     const flightKey = createHash('sha256').update(cookie).digest('hex');
@@ -155,8 +164,16 @@ export function createAuthApi({ supabaseUrl, apiKey, cookieSecret, secureCookie 
       clearSessionCookie(res);
       return null;
     }
-    setSessionCookie(res, refreshed);
-    return refreshed;
+    const refreshedSession = {
+      ...refreshed,
+      ...(session.recoveryOnly === true ? { recoveryOnly: true } : {}),
+    };
+    setSessionCookie(
+      res,
+      refreshedSession,
+      session.recoveryOnly === true ? RECOVERY_COOKIE_AGE_SECONDS : COOKIE_AGE_SECONDS,
+    );
+    return refreshedSession;
   }
 
   return async function authApi(req, res) {
@@ -190,6 +207,114 @@ export function createAuthApi({ supabaseUrl, apiKey, cookieSecret, secureCookie 
           accessToken: data.session.access_token,
           expiresAt: data.session.expires_at,
         });
+        return;
+      }
+
+      if (path === '/auth/password-reset' && method === 'POST') {
+        const origin = getSameOrigin(req);
+        if (!origin) {
+          sendJson(res, 403, { message: 'Origin is not allowed' });
+          return;
+        }
+        const body = JSON.parse((await readBody(req)).toString('utf8'));
+        if (typeof body.email !== 'string' || !body.email.trim() || body.email.trim().length > 320) {
+          sendJson(res, 400, { message: 'Укажите корректный email.' });
+          return;
+        }
+
+        try {
+          const { error } = await createAuthClient().resetPasswordForEmail(body.email.trim(), {
+            redirectTo: new URL('/password-reset', origin).toString(),
+          });
+          if (error) {
+            console.error('Password reset email request rejected', {
+              name: error.name,
+              status: error.status,
+              code: error.code,
+              message: error.message,
+            });
+          }
+        } catch (error) {
+          console.error(
+            'Password reset email request failed',
+            error instanceof Error ? error.name : 'Unknown error',
+          );
+        }
+        sendJson(res, 202, { accepted: true });
+        return;
+      }
+
+      if (path === '/auth/password-recovery/session' && method === 'POST') {
+        if (!getSameOrigin(req)) {
+          sendJson(res, 403, { message: 'Origin is not allowed' });
+          return;
+        }
+        const body = JSON.parse((await readBody(req)).toString('utf8'));
+        if (
+          typeof body.accessToken !== 'string' || body.accessToken.length > 8192 ||
+          typeof body.refreshToken !== 'string' || body.refreshToken.length > 8192
+        ) {
+          sendJson(res, 400, { message: 'Ссылка восстановления недействительна.' });
+          return;
+        }
+        const { data, error } = await createAuthClient().setSession({
+          access_token: body.accessToken,
+          refresh_token: body.refreshToken,
+        });
+        if (error || !data.session) {
+          sendJson(res, 401, { message: 'Ссылка восстановления недействительна или устарела.' });
+          return;
+        }
+        setSessionCookie(res, {
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+          expires_at: data.session.expires_at,
+          recoveryOnly: true,
+        }, RECOVERY_COOKIE_AGE_SECONDS);
+        sendJson(res, 200, { ready: true });
+        return;
+      }
+
+      if (path === '/auth/password-recovery/update' && method === 'POST') {
+        if (!getSameOrigin(req)) {
+          sendJson(res, 403, { message: 'Origin is not allowed' });
+          return;
+        }
+        const session = await loadSession(req, res, { allowRecovery: true, requireRecovery: true });
+        if (!session) {
+          sendJson(res, 401, { message: 'Ссылка восстановления недействительна или устарела.' });
+          return;
+        }
+        const body = JSON.parse((await readBody(req)).toString('utf8'));
+        if (typeof body.password !== 'string' || body.password.length < 6) {
+          sendJson(res, 400, { message: 'Пароль должен содержать не менее 6 символов.' });
+          return;
+        }
+
+        const authClient = createAuthClient();
+        const { data, error } = await authClient.setSession({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        });
+        if (error || !data.session) {
+          clearSessionCookie(res);
+          sendJson(res, 401, { message: 'Ссылка восстановления недействительна или устарела.' });
+          return;
+        }
+        setSessionCookie(res, {
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+          expires_at: data.session.expires_at,
+          recoveryOnly: true,
+        }, RECOVERY_COOKIE_AGE_SECONDS);
+
+        const { error: updateError } = await authClient.updateUser({ password: body.password });
+        if (updateError) {
+          sendJson(res, 400, { message: 'Не удалось изменить пароль. Проверьте требования к паролю и попробуйте снова.' });
+          return;
+        }
+        clearSessionCookie(res);
+        sendJson(res, 200, { updated: true });
         return;
       }
 

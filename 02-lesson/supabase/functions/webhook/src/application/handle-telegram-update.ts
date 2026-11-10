@@ -1,3 +1,7 @@
+import { answerKnowledgeQuestionUseCase } from '../../../_shared/knowledge/application/answer-question.ts';
+import { telegramBotClient } from '../adapters/telegram-bot-client.ts';
+import { telegramMessageRepository } from '../repositories/telegram-message-repository.ts';
+
 interface TelegramMessage {
   chat: {
     id: number;
@@ -29,55 +33,53 @@ export interface IncomingTelegramMessage {
   sentAt: string;
 }
 
-export interface OutgoingTelegramMessage {
-  body: string;
-  sentAt: string;
-  userId: string;
-}
-
-interface TelegramClient {
-  sendMessage(input: { chatId: number; text: string }): Promise<void>;
-}
-
-interface HandleTelegramUpdateOptions {
-  telegramClient: TelegramClient;
-  saveBotReply: (message: OutgoingTelegramMessage) => Promise<void>;
-  saveMessage: (message: IncomingTelegramMessage) => Promise<void>;
-}
-
-const ACKNOWLEDGEMENT = 'Мы получили ваш запрос';
-
-export function createHandleTelegramUpdate({
-  telegramClient,
-  saveBotReply,
-  saveMessage,
-}: HandleTelegramUpdateOptions): (update: unknown) => Promise<void> {
-  return async function handleTelegramUpdate(update) {
+export const handleTelegramUpdateUseCase = {
+  async execute(update: unknown): Promise<void> {
     if (!isTelegramUpdate(update) || update.message.from.is_bot) return;
     const { message } = update;
     const chatId = message.chat.id;
 
-    await saveMessage({
+    const body = message.text ?? message.caption ?? null;
+    await telegramMessageRepository.saveIncoming({
       updateId: update.update_id,
       userId: String(message.from.id),
       firstName: message.from.first_name,
       lastName: message.from.last_name ?? null,
       author: message.from.username ?? [message.from.first_name, message.from.last_name].filter(Boolean).join(' '),
-      body: message.text ?? message.caption ?? null,
+      body,
       sentAt: new Date(message.date * 1000).toISOString(),
     });
 
-    await telegramClient.sendMessage({
-      chatId,
-      text: ACKNOWLEDGEMENT,
+    const attempt = crypto.randomUUID();
+    const claim = await telegramMessageRepository.claim(update.update_id, attempt);
+    if (claim === 'sent') return;
+    if (claim === 'busy') throw new Error('Reply is already being processed');
+
+    let answer: string;
+    if (!body?.trim()) answer = 'Напишите вопрос текстом — я поищу ответ в базе знаний.';
+    else if (/^\/(start|help)(@\w+)?(?:\s|$)/i.test(body.trim())) {
+      answer = 'Я отвечаю по базе знаний. Сейчас в ней учебные статьи о вымышленном коворкинге «Атлас». Спросите о ценах, графике работы, переговорной, Wi-Fi, адресе или отмене брони.';
+    } else if (body.trim().length > 2000) answer = 'Пожалуйста, сократите вопрос до 2000 символов.';
+    else {
+      try { answer = (await answerKnowledgeQuestionUseCase.execute(body)).answer; }
+      catch (error) {
+        console.error('Knowledge answer failed', error instanceof Error ? error.name : 'Unknown');
+        answer = 'Поиск по базе знаний временно недоступен. Пожалуйста, попробуйте позже.';
+      }
+    }
+
+    let delivery: { sentAt: string };
+    try { delivery = await telegramBotClient.sendMessage({ chatId, text: answer }); }
+    catch (error) {
+      await telegramMessageRepository.fail(update.update_id, attempt);
+      throw error;
+    }
+    await telegramMessageRepository.complete({
+      updateId: update.update_id, attempt, body: answer,
+      sentAt: delivery.sentAt, userId: String(message.from.id),
     });
-    await saveBotReply({
-      body: ACKNOWLEDGEMENT,
-      sentAt: new Date().toISOString(),
-      userId: String(message.from.id),
-    });
-  };
-}
+  },
+};
 
 function isTelegramUpdate(value: unknown): value is TelegramUpdate {
   if (!isRecord(value) || !Number.isSafeInteger(value.update_id)) return false;

@@ -45,6 +45,28 @@ export async function getAuthSession(): Promise<AuthSession | null> {
   return parseAuthSession(await response.json());
 }
 
+async function postAuthMutation(path: string, body: Record<string, string>): Promise<void> {
+  const response = await fetch(path, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', 'X-WM-Request': '1' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error(await readError(response));
+}
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  await postAuthMutation('/api/auth/password-reset', { email });
+}
+
+export async function acceptPasswordRecovery(accessToken: string, refreshToken: string): Promise<void> {
+  await postAuthMutation('/api/auth/password-recovery/session', { accessToken, refreshToken });
+}
+
+export async function updatePassword(password: string): Promise<void> {
+  await postAuthMutation('/api/auth/password-recovery/update', { password });
+}
+
 export async function signIn(email: string, password: string): Promise<AuthSession> {
   const response = await fetch('/api/auth/login', {
     method: 'POST',
