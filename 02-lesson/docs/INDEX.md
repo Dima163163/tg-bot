@@ -23,9 +23,9 @@
 
 | Файл | Статус и связь с кодом |
 | --- | --- |
-| [`articles-setup.md`](articles-setup.md) | Запуск миграций, CRUD, активный провайдер и авторизация Codex MCP. Backend: `../supabase/functions/articles/src/`; MCP: `../.codex/config.toml`, `../scripts/prepare-article-write.mjs`. Описывает три слоя с прямыми импортами без DI. |
+| [`articles-setup.md`](articles-setup.md) | Запуск CRUD и провайдера, подготовка OAuth и подключение собственного MCP. Backend: `../supabase/modules/articles/`; MCP: `../supabase/functions/mcp/` и `../supabase/modules/articles/mcp/`; прежний административный путь сохранён отдельно. |
 
-| [`rag-runtime.md`](rag-runtime.md) | Рабочая связка Groq + Supabase gte-small(384), защищённый knowledge-admin, демостатьи, проверки, ограничения и следующий этап. |
+| [`rag-runtime.md`](rag-runtime.md) | Рабочая связка Groq + Supabase gte-small(384), общие модули в `../supabase/modules/knowledge/`, защищённый knowledge-admin, демостатьи, проверки, ограничения и следующий этап. |
 
 ## Планы реализации
 

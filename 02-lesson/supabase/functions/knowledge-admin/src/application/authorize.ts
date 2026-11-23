@@ -1,4 +1,4 @@
-import { KnowledgeError } from '../../../_shared/knowledge/application/contracts.ts';
+import { KnowledgeError } from '../../../../modules/knowledge/application/contracts.ts';
 import { knowledgeAdminAccess } from '../adapters/access.ts';
 
 export const authorizeKnowledgeAdminUseCase = {

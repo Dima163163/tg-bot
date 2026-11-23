@@ -108,7 +108,7 @@ psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/article-embedding
 
 ## 2. Единый адаптер embeddings
 
-Реализован `_shared/knowledge/adapters/embeddings.ts`; серверный адаптер «текст → embedding», общий для индексатора и вопросов.
+Реализован `modules/knowledge/adapters/embeddings.ts`; серверный адаптер «текст → embedding», общий для индексатора и вопросов.
 Проверять формат ответа, размерность и конечность числовых значений.
 Предусмотреть таймауты, пакетную обработку, ограниченные повторы временных
 ошибок и обработку лимитов провайдера.

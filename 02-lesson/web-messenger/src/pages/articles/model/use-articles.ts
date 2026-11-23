@@ -7,10 +7,10 @@ import {
   updateArticle,
 } from './article';
 
-export function useArticles() {
+export function useArticles(search: string) {
   return useInfiniteQuery({
-    queryKey: articlesQueryKey,
-    queryFn: ({ pageParam }) => getArticles({ cursor: pageParam }),
+    queryKey: [...articlesQueryKey, search],
+    queryFn: ({ pageParam }) => getArticles({ cursor: pageParam, search }),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });

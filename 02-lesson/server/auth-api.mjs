@@ -334,6 +334,26 @@ export function createAuthApi({ supabaseUrl, apiKey, cookieSecret, secureCookie 
         return;
       }
 
+      if (path === '/auth/oauth/authorization' && (method === 'GET' || method === 'POST')) {
+        const session = await loadSession(req, res);
+        if (!session) return sendJson(res, 401, { message: 'Войдите в аккаунт.' });
+        const body = method === 'POST' ? JSON.parse((await readBody(req)).toString('utf8')) : null;
+        const id = method === 'GET' ? url.searchParams.get('id') : body?.id;
+        if (typeof id !== 'string' || !/^[a-zA-Z0-9_-]{1,200}$/.test(id) ||
+            (method === 'POST' && !['approve', 'deny'].includes(body?.action))) {
+          return sendJson(res, 400, { message: 'Некорректный запрос авторизации.' });
+        }
+        const response = await fetch(`${authUrl}/oauth/authorizations/${encodeURIComponent(id)}${method === 'POST' ? '/consent' : ''}`, {
+          method,
+          headers: { apikey: apiKey, Authorization: `Bearer ${session.access_token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+          ...(body ? { body: JSON.stringify({ action: body.action }) } : {}),
+          redirect: 'error',
+        });
+        const result = await response.json().catch(() => null);
+        if (!response.ok || !result) return sendJson(res, response.status >= 500 ? 502 : 400, { message: 'Запрос авторизации недействителен или истёк.' });
+        return sendJson(res, 200, result);
+      }
+
       if (path === '/auth/logout' && method === 'POST') {
         const session = await loadSession(req, res);
         if (session) {

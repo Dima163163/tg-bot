@@ -1,5 +1,6 @@
 import { authorizeWebhookUseCase } from '../application/authorize-webhook.ts';
 import { handleTelegramUpdateUseCase } from '../application/handle-telegram-update.ts';
+import { telegramUpdateParser } from '../adapters/parse-telegram-update.ts';
 
 const TELEGRAM_SECRET_HEADER = 'x-telegram-bot-api-secret-token';
 const TELEGRAM_WEBHOOK_PATH = '/webhook/telegram';
@@ -32,7 +33,8 @@ export async function handleWebhookRequest(request: Request): Promise<Response> 
   }
 
   try {
-    await handleTelegramUpdateUseCase.execute(update);
+    const parsed = telegramUpdateParser.parse(update);
+    if (parsed) await handleTelegramUpdateUseCase.execute(parsed);
     return Response.json({ ok: true });
   } catch (error) {
     console.error('Telegram update handling failed', error instanceof Error ? error.name : 'Unknown');

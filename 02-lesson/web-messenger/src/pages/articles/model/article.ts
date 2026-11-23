@@ -20,6 +20,7 @@ export interface ArticlePage {
 export interface GetArticlesOptions {
   cursor: string | null;
   limit?: number;
+  search?: string;
 }
 
 export interface CreateArticleInput {
@@ -85,9 +86,10 @@ function parseArticlePage(response: unknown): ArticlePage {
   };
 }
 
-export async function getArticles({ cursor, limit = ARTICLE_PAGE_SIZE }: GetArticlesOptions): Promise<ArticlePage> {
+export async function getArticles({ cursor, limit = ARTICLE_PAGE_SIZE, search = '' }: GetArticlesOptions): Promise<ArticlePage> {
   const params = new URLSearchParams({ limit: String(limit) });
   if (cursor) params.set('cursor', cursor);
+  if (search) params.set('search', search);
 
   const response = await callEdgeFunction<unknown>(`articles?${params.toString()}`);
   return parseArticlePage(response);
