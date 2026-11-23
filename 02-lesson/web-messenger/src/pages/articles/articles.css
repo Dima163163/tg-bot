@@ -36,6 +36,9 @@
 .articles-table-heading .eyebrow { margin-bottom: 7px; }
 .articles-table-heading h2 { font-size: 18px; letter-spacing: -.045em; }
 .articles-page-size { color: #969c94; font: 10px 'DM Mono', monospace; }
+.articles-search { display: grid; gap: 8px; padding: 0 25px 18px; }
+.articles-search-controls { display: flex; gap: 8px; max-width: 600px; }
+.articles-search-controls .article-field { min-width: 0; flex: 1; }
 .articles-table-scroll { overflow-x: auto; }
 .articles-table { width: 100%; border-collapse: collapse; text-align: left; }
 .articles-table th { height: 38px; padding: 0 20px; border-top: 1px solid #efede8; border-bottom: 1px solid #efede8; background: #faf9f6; color: #8a9188; font: 500 9px 'DM Mono', monospace; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
@@ -89,6 +92,7 @@
   .article-create-card { padding: 19px 17px; }
   .article-create-fields { grid-template-columns: 1fr; }
   .articles-table-heading { padding: 19px 17px 15px; }
+  .articles-search { padding: 0 17px 15px; }
   .articles-table th:first-child { padding-left: 17px; }
   .articles-table th, .articles-table td { padding-right: 14px; padding-left: 14px; }
   .articles-table th:last-child { width: 260px; }

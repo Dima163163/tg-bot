@@ -1,6 +1,6 @@
 import { useForm } from 'react-hook-form';
 import { useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { AuthStatus } from '../../features/auth';
 import { currentUserQueryKey } from '../../features/auth/use-current-user';
 import { signIn } from '../../shared/api/auth-session';
@@ -8,6 +8,7 @@ import { Button } from '../../shared/ui/button';
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const queryClient = useQueryClient();
   const { register, handleSubmit, setError, clearErrors, formState: { errors, isSubmitting } } = useForm<{
     email: string;
@@ -21,7 +22,10 @@ export function LoginPage() {
       const session = await signIn(email.trim(), password);
       queryClient.clear();
       queryClient.setQueryData(currentUserQueryKey, session);
-      void navigate('/', { replace: true });
+      const authorizationId = params.get('authorization_id');
+      const destination = authorizationId && /^[a-zA-Z0-9_-]{1,200}$/.test(authorizationId)
+        ? `/oauth/consent?authorization_id=${encodeURIComponent(authorizationId)}` : '/';
+      void navigate(destination, { replace: true });
     } catch (error) {
       setError('root', { message: error instanceof Error ? error.message : 'Сервис входа недоступен.' });
     }

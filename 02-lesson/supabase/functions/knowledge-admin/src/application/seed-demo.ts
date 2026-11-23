@@ -1,8 +1,8 @@
-import { demoArticles } from '../../../_shared/knowledge/data/demo-articles.ts';
-import { knowledgeEmbeddings } from '../../../_shared/knowledge/adapters/embeddings.ts';
-import { createArticleUseCase } from '../../../articles/src/application/use-cases/create-article.ts';
-import { indexArticleUseCase } from '../../../articles/src/application/use-cases/index-article.ts';
-import { articleRepository } from '../../../articles/src/repositories/article-repository.ts';
+import { demoArticles } from '../../../../modules/knowledge/data/demo-articles.ts';
+import { knowledgeEmbeddings } from '../../../../modules/knowledge/adapters/embeddings.ts';
+import { createArticleUseCase } from '../../../../modules/articles/application/use-cases/create-article.ts';
+import { indexArticleUseCase } from '../../../../modules/articles/application/use-cases/index-article.ts';
+import { articleRepository } from '../../../../modules/articles/repositories/article-repository.ts';
 
 export const seedDemoArticlesUseCase = {
   async execute() {

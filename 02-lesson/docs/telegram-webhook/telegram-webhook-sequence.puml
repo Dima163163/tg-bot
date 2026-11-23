@@ -4,8 +4,14 @@ autonumber
 actor Telegram
 participant "Edge + HTTP handler\n(presentation)" as HTTP
 participant "authorizeWebhookUseCase" as Auth
+participant "telegramUpdateParser" as Parser
 participant "handleTelegramUpdateUseCase" as Update
-participant "telegramMessageRepository" as Repo
+participant "saveIncomingTelegramMessageUseCase" as Save
+participant "sendTelegramReplyUseCase" as Reply
+participant "prepareTelegramReplyUseCase" as Prepare
+participant "answerConversationUseCase" as Conversation
+participant "recentTelegramMessagesRepository" as History
+participant "conversations: telegramMessageRepository" as Repo
 database PostgreSQL as DB
 participant "answerKnowledgeQuestionUseCase" as RAG
 participant "Groq adapter" as Groq
@@ -19,31 +25,40 @@ Auth --> HTTP: allowed / denied / unconfigured
 alt Неверный путь, метод, секрет, настройки или JSON
   HTTP --> Telegram: 404 / 405 / 401 / 500 / 400
 else Запрос принят
-  HTTP -> Update: execute(update)
+  HTTP -> Parser: parse(update)
   alt Неподдерживаемый update или отправитель-бот
-    Update --> HTTP: Без действий
+    Parser --> HTTP: null
     HTTP --> Telegram: 200
   else Сообщение пользователя
-    Update -> Repo: saveIncoming(message)
+    Parser --> HTTP: Нормализованные данные
+    HTTP -> Update: execute(message)
+    Update -> Save: execute(message)
+    Save -> Repo: saveIncoming(message)
     Repo -> DB: RPC save_telegram_message\nupsert клиента + insert сообщения
     DB --> Repo: Сохранено либо входящий дубль пропущен
-    Update -> Repo: claim(update_id, attempt_uuid)
+    Repo --> Save: Сохранено
+    Save --> Update: Сохранено
+    Update -> Reply: execute(message)
+    Reply -> Repo: claim(update_id, attempt_uuid)
     Repo -> DB: RPC claim_telegram_reply\nlease 2 минуты
     DB --> Repo: sent / busy / claimed
     alt sent
-      Repo --> Update: Уже отвечено
+      Repo --> Reply: Уже отвечено
+      Reply --> Update: Без повторной отправки
       Update --> HTTP: Без повторной отправки
       HTTP --> Telegram: 200
     else busy
-      Repo --> Update: Попытка уже выполняется
+      Repo --> Reply: Попытка уже выполняется
+      Reply --> Update: Ошибка для повтора
       Update --> HTTP: Ошибка для повтора
       HTTP --> Telegram: 502
     else claimed
-      Repo --> Update: Lease получен
+      Repo --> Reply: Lease получен
+      Reply -> Prepare: execute(body)
       alt /start, /help, нет текста или вопрос слишком длинный
-        Update -> Update: Подготовить подсказку без AI
+        Prepare -> Prepare: Подготовить подсказку без AI
       else Вопрос до 2000 символов
-        Update -> RAG: execute(question)
+        Prepare -> RAG: execute(question)
         RAG -> Groq: searchText(question)
         Groq --> RAG: Краткий английский текст
         RAG -> AI: run(text, mean_pool, normalize)
@@ -60,24 +75,54 @@ else Запрос принят
           RAG -> RAG: «Мы обрабатываем ваш запрос»
         end
         note right of RAG
-          Пустой source_ids от Groq также даёт fallback.
-          Ошибка AI: сообщение о временной недоступности.
+          Пустой source_ids от Groq также включает fallback.
+          Ошибка поиска: сообщение о временной недоступности;
+          при 429 бот просит вернуться позже.
         end note
-        RAG --> Update: Ответ либо fallback
+        RAG --> Prepare: Ответ и источники либо пустой список
+        alt Ответ по статьям не найден
+          Prepare -> Conversation: execute(update_id, user_id, question)
+          Conversation -> History: findForUpdate(...)
+          History -> DB: Найти текущее сообщение пользователя\nи до 5 последних сообщений его клиента
+          alt Ошибка чтения истории
+            DB --> History: Ошибка
+            Conversation --> Prepare: Ошибка
+            Prepare -> Prepare: Сообщение о временной недоступности
+          else История прочитана
+            DB --> History: Сообщения
+            History --> Conversation: До 5 сообщений, включая вопрос
+            Conversation -> Groq: Диалоговый ответ с историей
+            alt Лимит Groq исчерпан (429)
+              Groq --> Conversation: Ограничение
+              Conversation --> Prepare: RATE_LIMIT
+              Prepare -> Prepare: «Вернитесь с вашим вопросом позже»
+            else Другая ошибка AI
+              Groq --> Conversation: Ошибка
+              Conversation --> Prepare: Ошибка
+              Prepare -> Prepare: Сообщение о временной недоступности
+            else Ответ получен
+              Groq --> Conversation: Ответ
+              Conversation --> Prepare: Ответ
+            end
+          end
+        end
       end
-      Update -> Bot: sendMessage(chat_id, text)
+      Prepare --> Reply: Текст ответа
+      Reply -> Bot: sendMessage(chat_id, text)
       alt Telegram не подтвердил отправку
-        Bot --> Update: Ошибка HTTP, сети или JSON ok
-        Update -> Repo: fail(update_id, attempt)
+        Bot --> Reply: Ошибка HTTP, сети или JSON ok
+        Reply -> Repo: fail(update_id, attempt)
         Repo -> DB: RPC fail_telegram_reply
+        Reply --> Update: Ошибка
         Update --> HTTP: Ошибка
         HTTP --> Telegram: 502
       else Отправка подтверждена
-        Bot --> Update: Фактическая sentAt
-        Update -> Repo: complete(update_id, attempt, answer, sentAt)
+        Bot --> Reply: Фактическая sentAt
+        Reply -> Repo: complete(update_id, attempt, answer, sentAt)
         Repo -> DB: RPC complete_telegram_reply\nтранзакция: исходящее сообщение + sent
         DB --> Repo: Завершено
-        Repo --> Update: Сохранено
+        Repo --> Reply: Сохранено
+        Reply --> Update: Сохранено
         Update --> HTTP: Успешно
         HTTP --> Telegram: 200
       end

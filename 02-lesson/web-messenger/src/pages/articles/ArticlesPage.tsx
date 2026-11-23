@@ -27,7 +27,9 @@ function formatArticleDate(value: string): string {
 }
 
 export function ArticlesPage() {
-  const articlesQuery = useArticles();
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  const articlesQuery = useArticles(search);
   const createMutation = useCreateArticle();
   const updateMutation = useUpdateArticle();
   const deleteMutation = useDeleteArticle();
@@ -209,7 +211,7 @@ export function ArticlesPage() {
         <div className="articles-table-heading">
           <div>
             <p className="eyebrow">Материалы</p>
-            <h2>Все статьи</h2>
+            <h2>{search ? 'Результаты поиска' : 'Все статьи'}</h2>
           </div>
           <div className="article-row-actions">
             <span className="articles-page-size">до 20 за страницу</span>
@@ -218,6 +220,21 @@ export function ArticlesPage() {
             </Button>
           </div>
         </div>
+
+        <form className="articles-search" role="search" onSubmit={(event) => {
+          event.preventDefault();
+          setSearch(searchInput.trim());
+        }}>
+          <label className="article-field-group" htmlFor="article-search">Поиск по заголовку и тексту</label>
+          <div className="articles-search-controls">
+            <Input id="article-search" className="article-field" type="search" maxLength={100}
+              placeholder="Введите слово или фразу" value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)} disabled={isWriting || editingArticleId !== null} />
+            <Button type="submit" variant="outline" size="sm" disabled={isWriting || editingArticleId !== null}>Найти</Button>
+            {search && <Button type="button" variant="outline" size="sm" disabled={isWriting || editingArticleId !== null}
+              onClick={() => { setSearchInput(''); setSearch(''); }}>Сбросить</Button>}
+          </div>
+        </form>
 
         {articlesQuery.isPending && <div className="articles-state">Загружаю статьи…</div>}
         {articlesQuery.isError && (
@@ -232,11 +249,11 @@ export function ArticlesPage() {
         {!articlesQuery.isPending && !articlesQuery.isError && articles.length === 0 && (
           <div className="articles-empty-state">
             <div className="articles-empty-mark" aria-hidden="true">A</div>
-            <h3>Пока нет статей</h3>
-            <p>Создайте первую запись — она появится в этой таблице.</p>
-            <Button disabled={isWriting} onClick={() => { if (!isCreateOpen) toggleCreate(); }} type="button" variant="outline" size="sm">
+            <h3>{search ? 'Ничего не найдено' : 'Пока нет статей'}</h3>
+            <p>{search ? 'Попробуйте изменить поисковый запрос.' : 'Создайте первую запись — она появится в этой таблице.'}</p>
+            {!search && <Button disabled={isWriting} onClick={() => { if (!isCreateOpen) toggleCreate(); }} type="button" variant="outline" size="sm">
               Добавить статью
-            </Button>
+            </Button>}
           </div>
         )}
 

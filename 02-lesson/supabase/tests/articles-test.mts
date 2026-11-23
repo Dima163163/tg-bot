@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import test, { afterEach, mock } from 'node:test';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { ArticleError } from '../functions/articles/src/application/contracts.ts';
-import type { ArticleWrite, GenerateArticleEmbedding, StoredArticle } from '../functions/articles/src/application/contracts.ts';
-import { handleArticlesRequest } from '../functions/articles/src/http/articles-handler.ts';
-import { articleEmbeddings } from '../functions/articles/src/adapters/http-embedding-client.ts';
+import { ArticleError } from '../modules/articles/application/contracts.ts';
+import type { ArticleWrite, GenerateArticleEmbedding, StoredArticle } from '../modules/articles/application/contracts.ts';
+import { handleArticlesRequest } from '../modules/articles/http/articles-handler.ts';
+import { articleEmbeddings } from '../modules/articles/adapters/http-embedding-client.ts';
 
 afterEach(() => mock.restoreAll());
 const originalDate = '2026-11-09T10:00:00+00:00';
@@ -119,6 +119,29 @@ test('articles: text CRUD works before a model is configured', async () => {
   assert.equal(rows.get('1')?.body, 'New body');
   assert.equal((await handler(request('DELETE', undefined, '?id=1'))).status, 204);
   assert.equal((await handler(request('DELETE', undefined, '?id=1'))).status, 404);
+});
+
+test('articles: search is applied in the database with the page cursor and safe filter syntax', async () => {
+  configureEmbeddings();
+  process.env.SUPABASE_URL = 'https://database.example.test';
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-server-key';
+  const requests: URL[] = [];
+  mock.method(globalThis, 'fetch', async (input: string | URL | Request) => {
+    const url = new URL(String(input));
+    if (url.pathname.endsWith('/panel_operators')) return Response.json([{ id: 1 }]);
+    requests.push(url);
+    return Response.json([]);
+  });
+  const cursor = Buffer.from(JSON.stringify({ id: '20' })).toString('base64url');
+  const params = new URLSearchParams({ search: 'слово, "фраза"', cursor, limit: '5' });
+  const response = await handleArticlesRequest(request('GET', undefined, `?${params}`), 'operator');
+  assert.equal(response.status, 200);
+  assert.equal(requests[0].searchParams.get('id'), 'lt.20');
+  assert.equal(requests[0].searchParams.get('limit'), '6');
+  assert.equal(requests[0].searchParams.get('or'), '(title.imatch."слово, \\"фраза\\"",body.imatch."слово, \\"фраза\\"")');
+  const tooLong = await handleArticlesRequest(request('GET', undefined, `?search=${'x'.repeat(101)}`), 'operator');
+  assert.equal(tooLong.status, 400);
+  assert.equal(requests.length, 1);
 });
 
 test('articles: configured embeddings and new content are saved in the same write', async () => {

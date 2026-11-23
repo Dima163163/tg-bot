@@ -4,6 +4,7 @@ import { ArticlesPage } from '../pages/articles';
 import { LoginPage } from '../pages/login';
 import { MessengerPage } from '../pages/messenger/MessengerPage';
 import { PasswordResetPage } from '../pages/password-reset';
+import { OAuthConsentPage } from '../pages/oauth-consent/OAuthConsentPage';
 
 export function AppRoutes() {
   return (
@@ -14,6 +15,7 @@ export function AppRoutes() {
       </Route>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/password-reset" element={<PasswordResetPage />} />
+      <Route path="/oauth/consent" element={<OAuthConsentPage />} />
     </Routes>
   );
 }

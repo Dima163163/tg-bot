@@ -1,5 +1,5 @@
-import { KnowledgeError } from '../../../_shared/knowledge/application/contracts.ts';
-import { knowledgeEmbeddings } from '../../../_shared/knowledge/adapters/embeddings.ts';
+import { KnowledgeError } from '../../../../modules/knowledge/application/contracts.ts';
+import { knowledgeEmbeddings } from '../../../../modules/knowledge/adapters/embeddings.ts';
 
 export const generateKnowledgeEmbeddingUseCase = {
   async execute(text: unknown) {

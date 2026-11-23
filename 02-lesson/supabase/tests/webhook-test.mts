@@ -14,16 +14,34 @@ let failRpc = '';
 let rejectTelegram = false;
 let failGroq = false;
 let emptySearch = false;
+let fallbackStatus = 200;
+let searchRateLimited = false;
+let answerWithoutSources = false;
+let missingHistoryOwner = false;
 const json = (value: unknown, status = 200) => Response.json(value, { status });
 beforeEach(() => {
   calls.length = 0;
-  claim = 'claimed'; failRpc = ''; rejectTelegram = false; failGroq = false; emptySearch = false;
+  claim = 'claimed'; failRpc = ''; rejectTelegram = false; failGroq = false; emptySearch = false; fallbackStatus = 200; searchRateLimited = false; answerWithoutSources = false; missingHistoryOwner = false;
   Object.assign(process.env, {
     SUPABASE_URL: 'https://db.test', SUPABASE_SERVICE_ROLE_KEY: 'server-key',
     BOT_TOKEN: 'bot-test', TELEGRAM_WEBHOOK_SECRET: 'secret-test', GROQ_API_KEY: 'groq-test',
     GROQ_MODEL: 'openai/gpt-oss-20b', RAG_MIN_SIMILARITY: '0.5',
   });
   globalThis.fetch = async (url, options) => {
+    const parsed = new URL(String(url));
+    if (parsed.pathname === '/rest/v1/messages' && options?.method === 'GET') {
+      const input = Object.fromEntries(parsed.searchParams);
+      const isCurrent = parsed.searchParams.has('telegram_update_id');
+      calls.push({ name: isCurrent ? 'history-current' : 'history-recent', input });
+      if (isCurrent) return json(missingHistoryOwner ? [] : [{ id: 6, client_id: 77 }]);
+      return json([
+        { id: 6, body: 'Сколько стоит день?', messenger_type: 'telegram' },
+        { id: 5, body: 'Последний ответ', messenger_type: 'telegram_bot' },
+        { id: 4, body: 'Последний вопрос', messenger_type: 'telegram' },
+        { id: 3, body: 'Ранний ответ', messenger_type: 'telegram_bot' },
+        { id: 2, body: 'Ранний вопрос', messenger_type: 'telegram' },
+      ]);
+    }
     const name = String(url).split('/').at(-1)!;
     const input = JSON.parse(String(options?.body)) as Record<string, unknown>;
     calls.push({ name, input });
@@ -31,10 +49,15 @@ beforeEach(() => {
     if (name === 'claim_telegram_reply') return json(claim);
     if (name === 'search_articles') return json(emptySearch ? [] : [{ id: 2, title: 'Цены', body: 'День стоит 900 рублей.', similarity: 0.8 }]);
     if (name === 'completions') {
-      if (failGroq) return json({ error: 'private provider details' }, 429);
       const messages = input.messages as Array<{ content: string }>;
+      if (messages[0].content.startsWith('Ты помощник службы поддержки')) {
+        if (fallbackStatus !== 200) return json({ error: 'private provider details' }, fallbackStatus);
+        return json({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ answer: 'Ответ Groq' }) } }] });
+      }
+      if (searchRateLimited) return json({ error: 'private provider details' }, 429);
+      if (failGroq) return json({ error: 'private provider details' }, 503);
       const answer = messages[0].content.startsWith('Create an English')
-        ? { search_text: 'Atlas coworking day pass price' } : { answer: 'Дневной пропуск стоит 900 рублей.', source_ids: [2] };
+        ? { search_text: 'Atlas coworking day pass price' } : { answer: 'Дневной пропуск стоит 900 рублей.', source_ids: answerWithoutSources ? [] : [2] };
       return json({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(answer) } }] });
     }
     if (name === 'sendMessage') return json(rejectTelegram ? { ok: false } : { ok: true, result: { date: 1_789_632_100 } });
@@ -110,11 +133,60 @@ test('webhook: provider outage returns a temporary message without inventing an 
   assert.equal((await handleWebhookRequest(request())).status, 200);
   assert.match(String(calls.find(call => call.name === 'sendMessage')?.input.text), /временно недоступен/);
 });
-test('webhook: no search results avoids answer model and tells user information is missing', async () => {
+test('webhook: no search results sends only this client’s recent history to Groq', async () => {
   emptySearch = true;
   assert.equal((await handleWebhookRequest(request())).status, 200);
+  assert.equal(names().filter(name => name === 'completions').length, 2);
+  assert.equal(calls.find(call => call.name === 'sendMessage')?.input.text, 'Ответ Groq');
+  const lookup = calls.find(call => call.name === 'history-current')?.input;
+  assert.equal(lookup?.telegram_update_id, 'eq.100');
+  assert.equal(lookup?.messenger_user_id, 'eq.456');
+  const history = calls.find(call => call.name === 'history-recent')?.input;
+  assert.equal(history?.client_id, 'eq.77');
+  assert.equal(history?.limit, '5');
+  const fallback = calls.filter(call => call.name === 'completions').at(-1)?.input;
+  const messages = fallback?.messages as Array<{ role: string; content: string }>;
+  assert.equal(fallback?.model, 'openai/gpt-oss-20b');
+  assert.deepEqual(messages.slice(1), [
+    { role: 'user', content: 'Ранний вопрос' },
+    { role: 'assistant', content: 'Ранний ответ' },
+    { role: 'user', content: 'Последний вопрос' },
+    { role: 'assistant', content: 'Последний ответ' },
+    { role: 'user', content: 'Сколько стоит день?' },
+  ]);
+});
+test('webhook: exhausted Groq quota on fallback asks the client to return later', async () => {
+  emptySearch = true;
+  fallbackStatus = 429;
+  assert.equal((await handleWebhookRequest(request())).status, 200);
+  assert.equal(calls.find(call => call.name === 'sendMessage')?.input.text, 'Вернитесь с вашим вопросом позже.');
+  assert.ok(names().includes('complete_telegram_reply'));
+});
+test('webhook: unsuitable articles trigger the conversation fallback', async () => {
+  answerWithoutSources = true;
+  assert.equal((await handleWebhookRequest(request())).status, 200);
+  assert.equal(names().filter(name => name === 'completions').length, 3);
+  assert.equal(calls.find(call => call.name === 'sendMessage')?.input.text, 'Ответ Groq');
+});
+test('webhook: missing incoming message prevents history and fallback provider access', async () => {
+  emptySearch = true;
+  missingHistoryOwner = true;
+  assert.equal((await handleWebhookRequest(request())).status, 200);
+  assert.ok(!names().includes('history-recent'));
   assert.equal(names().filter(name => name === 'completions').length, 1);
-  assert.equal(calls.find(call => call.name === 'sendMessage')?.input.text, 'Мы обрабатываем ваш запрос');
+  assert.equal(calls.find(call => call.name === 'sendMessage')?.input.text, 'Сервис ответа временно недоступен. Пожалуйста, попробуйте позже.');
+});
+test('webhook: Groq rate limit during search asks the client to return later', async () => {
+  searchRateLimited = true;
+  assert.equal((await handleWebhookRequest(request())).status, 200);
+  assert.equal(calls.find(call => call.name === 'sendMessage')?.input.text, 'Вернитесь с вашим вопросом позже.');
+  assert.ok(!names().includes('history-current'));
+});
+test('webhook: a Groq fallback error does not expose provider details', async () => {
+  emptySearch = true;
+  fallbackStatus = 500;
+  assert.equal((await handleWebhookRequest(request())).status, 200);
+  assert.equal(calls.find(call => call.name === 'sendMessage')?.input.text, 'Сервис ответа временно недоступен. Пожалуйста, попробуйте позже.');
 });
 test('webhook: commands and overlong messages avoid AI calls', async () => {
   for (const text of ['/start', '/help@atlas_bot', 'a'.repeat(2001)]) {
@@ -132,6 +204,17 @@ test('webhook: captions and non-text messages preserve incoming body', async () 
   await handleWebhookRequest(request({ ...value, message }));
   assert.equal(calls[0].input.p_body, null);
   assert.ok(!names().includes('completions'));
+});
+test('webhook: normalized client identity and text remain part of one incoming RPC', async () => {
+  const value = update('/start');
+  const from = { id: 456, first_name: 'Анна', last_name: 'Иванова' };
+  const response = await handleWebhookRequest(request({ ...value, message: { ...value.message, from, caption: 'ignored' } }));
+  assert.equal(response.status, 200);
+  assert.equal(names().filter(name => name === 'save_telegram_message').length, 1);
+  assert.equal(calls[0].input.p_first_name, 'Анна');
+  assert.equal(calls[0].input.p_last_name, 'Иванова');
+  assert.equal(calls[0].input.p_author, 'Анна Иванова');
+  assert.equal(calls[0].input.p_body, '/start');
 });
 test('webhook: ignores unrelated, malformed updates and bots', async () => {
   for (const value of [null, {}, { update_id: 1, callback_query: {} }, { ...update(), message: { ...update().message, from: { id: 1, first_name: 'Bot', is_bot: true } } }]) {

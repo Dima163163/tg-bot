@@ -1,5 +1,5 @@
-import { ArticleError } from '../supabase/functions/articles/src/application/contracts.ts';
-import { prepareArticleWriteUseCase } from '../supabase/functions/articles/src/application/use-cases/prepare-article-write.ts';
+import { ArticleError } from '../supabase/modules/articles/application/contracts.ts';
+import { prepareArticleWriteUseCase } from '../supabase/modules/articles/application/use-cases/prepare-article-write.ts';
 
 // Stdio presentation for the MCP preparation use case. This never writes to DB.
 try {

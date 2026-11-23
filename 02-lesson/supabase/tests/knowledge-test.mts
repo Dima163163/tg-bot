@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test, beforeEach, after } from 'node:test';
-import { answerKnowledgeQuestionUseCase } from '../functions/_shared/knowledge/application/answer-question.ts';
-import { knowledgeEmbeddings } from '../functions/_shared/knowledge/adapters/embeddings.ts';
-import { articleEmbeddings } from '../functions/articles/src/adapters/http-embedding-client.ts';
+import { answerKnowledgeQuestionUseCase } from '../modules/knowledge/application/answer-question.ts';
+import { knowledgeEmbeddings } from '../modules/knowledge/adapters/embeddings.ts';
+import { articleEmbeddings } from '../modules/articles/adapters/http-embedding-client.ts';
 import { handleKnowledgeAdminRequest } from '../functions/knowledge-admin/src/http/handler.ts';
 
 const originalFetch = globalThis.fetch;
@@ -95,7 +95,7 @@ test('RAG: provider error exposes no provider response', async () => {
   providerStatus = 429;
   await assert.rejects(() => answerKnowledgeQuestionUseCase.execute('Цена?'), error => {
     assert.ok(error instanceof Error);
-    assert.equal(error.message, 'Groq отклонил запрос.');
+    assert.equal(error.message, 'Лимит Groq исчерпан.');
     return true;
   });
   assert.equal(databaseCalls, 0);

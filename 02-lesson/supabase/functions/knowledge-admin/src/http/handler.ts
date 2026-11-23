@@ -1,7 +1,7 @@
-import { ArticleError } from '../../../articles/src/application/contracts.ts';
-import { KnowledgeError } from '../../../_shared/knowledge/application/contracts.ts';
-import { answerKnowledgeQuestionUseCase } from '../../../_shared/knowledge/application/answer-question.ts';
-import { indexArticleUseCase } from '../../../articles/src/application/use-cases/index-article.ts';
+import { ArticleError } from '../../../../modules/articles/application/contracts.ts';
+import { KnowledgeError } from '../../../../modules/knowledge/application/contracts.ts';
+import { answerKnowledgeQuestionUseCase } from '../../../../modules/knowledge/application/answer-question.ts';
+import { indexArticleUseCase } from '../../../../modules/articles/application/use-cases/index-article.ts';
 import { authorizeKnowledgeAdminUseCase } from '../application/authorize.ts';
 import { generateKnowledgeEmbeddingUseCase } from '../application/generate-embedding.ts';
 import { seedDemoArticlesUseCase } from '../application/seed-demo.ts';
